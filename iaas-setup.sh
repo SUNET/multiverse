@@ -69,6 +69,6 @@ if grep -q '^# en_US.UTF-8 UTF-8$' $locale_gen_file; then
     locale-gen
 fi
 
-DEBIAN_FRONTEND="noninteractive" apt-get -y update
+DEBIAN_FRONTEND="noninteractive" apt -y update
 DEBIAN_FRONTEND="noninteractive" apt-get -o Dpkg::Options::="--force-confnew" --fix-broken --assume-yes dist-upgrade
 reboot
