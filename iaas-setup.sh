@@ -75,7 +75,9 @@ fi
 #
 # E: Repository 'http://deb.debian.org/debian buster-updates InRelease' changed its 'Suite' value from 'stable-updates' to 'oldstable-updates'
 # N: This must be accepted explicitly before updates for this repository can be applied. See apt-secure(8) manpage for details.
-rm -r /var/lib/apt/lists/*
+if [ -n "$(ls -A /var/lib/apt/lists/)" ]; then
+    rm -r /var/lib/apt/lists/*
+fi
 
 DEBIAN_FRONTEND="noninteractive" apt-get -y update
 DEBIAN_FRONTEND="noninteractive" apt-get -o Dpkg::Options::="--force-confnew" --fix-broken --assume-yes dist-upgrade
