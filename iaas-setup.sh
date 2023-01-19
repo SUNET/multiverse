@@ -69,9 +69,10 @@ if grep -q '^# en_US.UTF-8 UTF-8$' $locale_gen_file; then
     locale-gen
 fi
 
-# Workaround for when Debian renames their Suite which needs to be verified. No
-# question is asked to there is nothing to say "yes" to for `apt-get`. Without
-# a cache there is nothing to compare against and no reason to worry.
+# Workaround for when Debian or Ubuntu renames their Suite which needs to be
+# verified. No question is asked so there is nothing to say "yes" to for
+# `apt-get`. Without a disk cache of repo data for `apt-get` there is nothing
+# to compare against and no reason to worry.
 #
 # E: Repository 'http://deb.debian.org/debian buster-updates InRelease' changed its 'Suite' value from 'stable-updates' to 'oldstable-updates'
 # N: This must be accepted explicitly before updates for this repository can be applied. See apt-secure(8) manpage for details.
