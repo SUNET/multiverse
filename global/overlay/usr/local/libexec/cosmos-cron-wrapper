@@ -2,6 +2,7 @@
 
 test -f /etc/no-automatic-cosmos && exit 0
 
+export AUTOMATIC_COSMOS="yes"
 RUN_COSMOS='/usr/local/bin/run-cosmos'
 SCRIPTHERDER_CMD=''
 

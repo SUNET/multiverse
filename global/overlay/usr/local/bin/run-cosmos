@@ -3,9 +3,49 @@
 # Simplify running cosmos, with serialization if flock is available.
 #
 
+set -e
+
 readonly PROGNAME=$(basename "$0")
-readonly LOCKFILE_DIR=/tmp
+readonly LOCKFILE_DIR=${TMPDIR-'/tmp'}
 readonly LOCK_FD=200
+declare -a COSMOS_ARGS
+RANDOM_SLEEP=0
+
+usage ()
+{
+    echo "\
+Usage: run-cosmos [-h] [--help] [--random-sleep [MAX]] [-v]
+
+
+  -h, --help                Show this help text and exit
+  --random-sleep            Sleep for a random number of seconds before running cosmos
+  -v                        Run cosmos with verbose flag
+" 1>&2
+}
+
+{
+   while test $# -gt 0; do
+      a=$1
+      shift
+      case "$a" in
+        --random-sleep)
+            if [ "x$1" != 'x--' ]; then
+                RANDOM_SLEEP="$1"
+                shift
+            else
+                RANDOM_SLEEP=60
+            fi
+            ;;
+        -h)
+            usage
+            exit 0
+            ;;
+        -v)
+            COSMOS_ARGS+=("-v")
+            ;;
+      esac
+   done
+}
 
 lock() {
     local prefix=$1
@@ -15,7 +55,7 @@ lock() {
     # create lock file
     eval "exec $fd>$lock_file"
 
-    # acquier the lock
+    # acquire the lock
     flock -n "$fd" \
         && return 0 \
         || return 1
@@ -29,18 +69,34 @@ eexit() {
 }
 
 main () {
-   lock "$PROGNAME" || eexit "Only one instance of $PROGNAME can run at one time."
-   cosmos "$@" update
-   cosmos "$@" apply
+   # In case the puppet manifest has non-US-ASCII characters in it somewhere
+    locale_set=0
+    for loc in "en_US.utf-8" "en_GB.utf-8" "en_US.utf8" "en_GB.utf8"; do
+        if locale -a | grep -qi "${loc}"; then
+            export LANG="${loc}"
+            export LC_ALL="${loc}"
+            echo "$0: Set locale ${loc}"
+            locale_set=1
+            break
+        fi
+    done
 
-   touch /var/run/last-cosmos-ok.stamp
+    if [ $locale_set -ne 1 ]; then
+        echo ""
+        echo "$0: WARNING: Could not initialize locale"
+        echo "*********************************************************************"
+    fi
 
-   find /var/lib/puppet/reports/ -type f -mtime +10 -print0 | xargs -0 rm -f
+    lock "$PROGNAME" || eexit "Only one instance of $PROGNAME can run at one time."
+
+    test -x /usr/bin/run-parts -a -d /etc/multiverse/run-cosmos/pre-tasks.d/ && \
+        run-parts --report /etc/multiverse/run-cosmos/pre-tasks.d/
+
+    cosmos "${COSMOS_ARGS[@]}" update
+    cosmos "${COSMOS_ARGS[@]}" apply
+
+    test -x /usr/bin/run-parts -a -d /etc/multiverse/run-cosmos/post-tasks.d/ && \
+        run-parts --report /etc/multiverse/run-cosmos/post-tasks.d/
 }
 
-main "$@"
-
-if [ -f /cosmos-reboot ]; then
-   rm -f /cosmos-reboot
-   reboot
-fi
+main
