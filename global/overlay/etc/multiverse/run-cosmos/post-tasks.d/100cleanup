@@ -2,7 +2,7 @@
 
 set -e
 
-find /var/lib/puppet/reports/ -type f -mtime +10 -print0 | xargs -0 rm -f
+find /var/lib/puppet/reports/ -type f -mtime +10 -print0 | xargs -0 --no-run-if-empty rm -f
 
 # remove old file (was unused, and we monitor cosmos with scriptherder)
 rm -f /var/run/last-cosmos-ok.stamp
