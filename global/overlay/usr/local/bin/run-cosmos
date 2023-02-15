@@ -33,7 +33,7 @@ Usage: run-cosmos [-h] [--help] [--random-sleep [MAX]] [-v]
                 RANDOM_SLEEP="$1"
                 shift
             else
-                RANDOM_SLEEP=60
+                RANDOM_SLEEP=300
             fi
             ;;
         -h)
@@ -88,6 +88,12 @@ main () {
     fi
 
     lock "$PROGNAME" || eexit "Only one instance of $PROGNAME can run at one time."
+
+    if [ "$RANDOM_SLEEP" -gt 0 ]; then
+        sleep=$(( RANDOM % RANDOM_SLEEP ))
+        echo "$0: Sleeping for ${sleep} seconds before attempting to run cosmos"
+        sleep "$sleep"
+    fi
 
     test -x /usr/bin/run-parts -a -d /etc/multiverse/run-cosmos/pre-tasks.d/ && \
         run-parts --report /etc/multiverse/run-cosmos/pre-tasks.d/
