@@ -1,12 +1,17 @@
 #!/bin/bash
 ip="${1}"
-
-if [[ -z "${ip}" ]]; then
-    echo "Please specify a cloud image host that the script should do the following on:"
+strict="${2}"
+if [[ -z "${ip}" ]] || [[ "${ip}" == "--help" ]] || [[ "${ip}" == "-h" ]] || \
+   [[ "${strict}" == "--help" ]] || [[ "${strict}" == "-h" ]]; then
+    echo "Usage: ${0} <ip or hostname> [--help|-h] [--strict|-s]"
+    echo "ip or hostname: a cloud image host that the script should do the following on:"
     echo "  #1 enable root-login"
     echo "  #2 remove the default user"
     echo "  #3 run apt-get update and dist-upgrade without interaction"
     echo "  #4 reboot to start using the new kernel, updated packages etc."
+    echo "Options:"
+    echo "  -h|--help show this help message"
+    echo "  -s|--strict use StrictHostKeyChecking for ssh (default: off)"
     exit 1
 fi
 
@@ -16,10 +21,20 @@ set -x
 # this script is located at
 script_dir=$(dirname "$0")
 
+# Since this script is intended to run on newly installed machines,
+# we should not worry about any TOFU databases, allready present
+ssh-keygen -R "${ip}" &> /dev/null
+
+ssh_strict_host_key_checking="StrictHostKeyChecking=off"
+
+if [[ "${strict}" == "--strict" ]] || [[ "${strict}" == "-s" ]]; then
+  ssh_strict_host_key_checking="StrictHostKeyChecking=on"
+fi
+
 # The reason for running two separate logins is that it is tricky to
 # remove the initial user while logged in as that same user:
 # ===
 # userdel: user ubuntu is currently used by process 44063
 # ===
-ssh "ubuntu@${ip}" "bash -s" < "$script_dir"/iaas-enable-root.sh
+ssh "ubuntu@${ip}" -o "${ssh_strict_host_key_checking}" "bash -s" < "$script_dir"/iaas-enable-root.sh
 ssh "root@${ip}" "bash -s" < "$script_dir"/iaas-setup.sh
