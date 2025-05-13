@@ -1,0 +1,41 @@
+publiccodeYmlVersion: "0.4"
+
+name: multiverse
+url: "https://github.com/SUNET/multiverse.git"
+platforms:
+  - linux
+
+categories:
+  - it-service-management
+
+developmentStatus: stable
+
+softwareType: "standalone/other"
+
+description:
+  en:
+    shortDescription: >
+      System Operations using Cosmos & Puppet
+
+    longDescription: >
+      System Operations using Cosmos & Puppet
+
+    features:
+      - Configuration management
+
+legal:
+  license: BSD-2-Clause
+
+maintenance:
+  type: "community"
+
+  contacts:
+    - name: Johan Wassberg <jocar@sunet.se>
+    - name: Leif Johansson <leifj@sunet.se>
+    - name: Micke Nordin <kano@sunet.se>
+    - name: Patrik Lundin <patlu@sunet.se>
+
+localisation:
+  localisationReady: false
+  availableLanguages:
+    - en
