@@ -8,7 +8,7 @@ How to create shared secrets within a repo using hiera:
 
 3rd Step
  Create a puppet class similar to the example below:
-
+```
  class <CLASS-NAME> {
 
   $shared_cosmos_key = '/etc/hiera/eyaml/shared-cosmos.pkcs7.key'
@@ -23,7 +23,7 @@ How to create shared secrets within a repo using hiera:
     sunet::snippets::secret_file { $shared_cosmos_key: hiera_key => 'shared_cosmos_hiera_key' }
   }
 }
-
+```
 4th Step
  Add the above class on the hosts that will use shared secrets using cosmos-rules (or cosmos-site.pp).
 
