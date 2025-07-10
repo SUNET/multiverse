@@ -1,13 +1,13 @@
-How to create shared secrets within a repo using hiera:
+# How to create shared secrets within a repo using hiera #
 
-1st Step
- Use scripts/create-shared-cosmos-secret.sh to generate a shared key pair and configure a overlay folder (example global).
+## 1st Step ##
+Use scripts/create-shared-cosmos-secret.sh to generate a shared key pair and configure a overlay folder (example global).
 
-2nd Step
- Add the shared private key as "shared_cosmos_hiera_key" on all hosts that need to access and edit the secrets. The private key should be added using edit-secrets script for this host.
+## 2nd Step ##
+Add the shared private key as "shared_cosmos_hiera_key" on all hosts that need to access and edit the secrets. The private key should be added using edit-secrets script for this host.
 
-3rd Step
- Create a puppet class similar to the example below:
+## 3rd Step ##
+Create a puppet class similar to the example below:
 ```
  class <CLASS-NAME> {
 
@@ -24,10 +24,10 @@ How to create shared secrets within a repo using hiera:
   }
 }
 ```
-4th Step
- Add the above class on the hosts that will use shared secrets using cosmos-rules (or cosmos-site.pp).
+## 4th Step ##
+Add the above class on the hosts that will use shared secrets using cosmos-rules (or cosmos-site.pp).
 
-5th Step
- Add secrets to the shared file using "edit-secrets <host> <overlay-folder>". The shared secrets file will be placed under <overlay-folder>/etc/hiera/data .
+## 5th Step ##
+Add secrets to the shared file using "edit-secrets <host> <overlay-folder>". The shared secrets file will be placed under <overlay-folder>/etc/hiera/data .
 
 
