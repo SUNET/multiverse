@@ -21,7 +21,7 @@ declare -A KEYRING
 # associative array with non-expired keys found in $COSMOS_KEYS directory
 declare -A SEEN
 
-# Make sure we have a fresh view of all previously accepted keys
+# Install or update keys discovered in the $COSMOS_KEYS directory
 for k in "$COSMOS_KEYS"/*.pub; do
     if [[ ! -s $k ]]; then
 	# Silently ignore empty files
