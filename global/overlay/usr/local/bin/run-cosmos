@@ -140,7 +140,10 @@ main () {
 
     touch /var/run/last-cosmos-ok.stamp
 
-    find /var/lib/puppet/reports/ -type f -mtime +10 -print0 | xargs -0 rm -f
+    PUPPET_REPORTS_DIR='/var/lib/puppet/reports'
+    if [ -d "${PUPPET_REPORTS_DIR}" ]; then
+        find "${PUPPET_REPORTS_DIR}/" -type f -mtime +10 -print0 | xargs -0 rm -f
+    fi
 
     if [ -f /cosmos-reboot ]; then
         rm -f /cosmos-reboot
