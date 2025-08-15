@@ -138,6 +138,11 @@ main () {
     fleetlock_lock || eexit "Unable to acquire fleetlock lock."
     cosmos "$@" update
     cosmos "$@" apply
+
+    if [ -f /var/run/reboot-required ] && [ -f /etc/cosmos-automatic-reboot ]; then
+        oexit "${PROGNAME}: Will not attempt fleetlock_unlock (exiting early) due to existing reboot files"
+    fi
+
     fleetlock_unlock || eexit "Unable to release fleetlock lock."
 
     touch /var/run/last-cosmos-ok.stamp
