@@ -37,13 +37,13 @@ if id "$os"; then
     # script and this one it is possible the process has timed out on its own,
     # so run this command before doing "set -e" in case there is no process
     # to match.
-    pkill -u "$os" -xf "/lib/systemd/systemd --user"
+    pkill -u "$os" -f "/lib/systemd/systemd --user"
 
     # Make sure the process has gone away before continuing
     sleep_seconds=1
     attempt=1
     max_attempts=10
-    while pgrep -u "$os" -xf "/lib/systemd/systemd --user"; do
+    while pgrep -u "$os" -f "/lib/systemd/systemd --user"; do
         if [ $attempt -gt $max_attempts ]; then
             echo "failed waiting for systemd process to exit, please investigate"
             exit 1
