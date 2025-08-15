@@ -13,4 +13,9 @@ if [ -f /usr/bin/puppet ] && [ -d /etc/puppet/manifests ]; then
       test "x$COSMOS_VERBOSE" = "xy" && echo "$0: Applying Puppet manifest $m"
       puppet apply $args $m
    done
+
+   PUPPET_REPORTS_DIR='/var/lib/puppet/reports'
+   if [ -d "${PUPPET_REPORTS_DIR}" ]; then
+       find "${PUPPET_REPORTS_DIR}" -type f -mtime +10 -print0 | xargs -0 rm -f
+   fi
 fi
