@@ -139,7 +139,7 @@ main () {
     cosmos "$@" update
     cosmos "$@" apply
 
-    if [ -f /var/run/reboot-required ] && [ -f /etc/cosmos-automatic-reboot ]; then
+    if [ -f /var/run/reboot-required ] && [ -f /var/run/cosmos-reboot-in-progress ]; then
         oexit "${PROGNAME}: Will not attempt fleetlock_unlock (exiting early) due to existing reboot files"
     fi
 
