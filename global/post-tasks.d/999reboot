@@ -7,7 +7,7 @@ if [[ -f /var/run/reboot-required && -f /etc/cosmos-automatic-reboot ]]; then
   # Eg. ALLOW_REBOOT_AT=06
   . /etc/cosmos-automatic-reboot
 
-  if [ "${ALLOW_REBOOT_AT}x" != "x" ]; then
+  if [ -n "${ALLOW_REBOOT_AT}" ]; then
     if [ "${ALLOW_REBOOT_AT}" != "$(date +%H)" ]; then
       echo "Scheduled to reboot at ${ALLOW_REBOOT_AT}"
       exit
