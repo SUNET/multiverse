@@ -2,6 +2,18 @@
 
 if [[ -f /var/run/reboot-required && -f /etc/cosmos-automatic-reboot ]]; then
 
+
+  # May contain ALLOW_REBOOT_AT=
+  # Eg. ALLOW_REBOOT_AT=06
+  . /etc/cosmos-automatic-reboot
+
+  if [ -n "${ALLOW_REBOOT_AT}" ]; then
+    if [ "${ALLOW_REBOOT_AT}" != "$(date +%H)" ]; then
+      echo "Scheduled to reboot at ${ALLOW_REBOOT_AT}"
+      exit
+    fi
+  fi
+
     if [[ $HOSTNAME =~ -tug- ]]; then
 	# Reboot hosts in site TUG with 15 seconds delay (enough to manually
 	# cancel the reboot if logged in and seeing the 'emerg' message broadcasted to console)
@@ -21,6 +33,8 @@ if [[ -f /var/run/reboot-required && -f /etc/cosmos-automatic-reboot ]]; then
     sleep $sleep
     if [ -f /var/run/reboot-required ]; then
 	logger -p local0.crit -i -t cosmos-automatic-reboot "Rebooting automatically"
+	# Signal to run-cosmos
+	touch /var/run/cosmos-reboot-in-progress
 	reboot
     fi
 fi
