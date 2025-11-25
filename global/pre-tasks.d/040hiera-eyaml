@@ -18,21 +18,21 @@ stamp="$COSMOS_BASE/stamps/hiera-eyaml-v01.stamp"
 test -f "$stamp" && exit 0
 
 if [ ! -f /usr/bin/eyaml ] || [ ! -d /usr/share/doc/yaml-mode ]; then
-    apt-get update
-    # If we don't install emacs before yaml-mode the default emacs package
-    # will be emacs-gtk which brings x11 with friends which we don't need.
-    apt-get -y install emacs-nox
-    apt-get -y install hiera-eyaml yaml-mode
+	apt-get update
+	# If we don't install emacs before yaml-mode the default emacs package
+	# will be emacs-gtk which brings x11 with friends which we don't need.
+	apt-get -y install emacs-nox
+	apt-get -y install hiera-eyaml yaml-mode
 fi
 
 if [ ! -f ${EYAMLDIR}/public_certkey.pkcs7.pem ] || [ ! -f ${EYAMLDIR}/private_key.pkcs7.pem ]; then
-    # hiera-eyaml wants a certificate and public key, not just a public key oddly enough
-    echo "$0: Generating eyaml key in ${EYAMLDIR} - this might take a while..."
-    mkdir -p /etc/hiera/eyaml
-    openssl req -x509 -newkey rsa:4096 -keyout ${EYAMLDIR}/private_key.pkcs7.pem \
-	    -out ${EYAMLDIR}/public_certkey.pkcs7.pem -days 3653 -nodes -sha256 \
-	    -subj "/C=SE/O=SUNET/OU=EYAML/CN=$(hostname)"
-    rm -f ${EYAMLDIR}/public_key.pkcs7.pem  # cleanup
+	# hiera-eyaml wants a certificate and public key, not just a public key oddly enough
+	echo "$0: Generating eyaml key in ${EYAMLDIR} - this might take a while..."
+	mkdir -p /etc/hiera/eyaml
+	openssl req -x509 -newkey rsa:4096 -keyout ${EYAMLDIR}/private_key.pkcs7.pem \
+		-out ${EYAMLDIR}/public_certkey.pkcs7.pem -days 3653 -nodes -sha256 \
+		-subj "/C=SE/O=SUNET/OU=EYAML/CN=$(hostname)"
+	rm -f ${EYAMLDIR}/public_key.pkcs7.pem # cleanup
 fi
 
 mkdir -p "$(dirname "${stamp}")"

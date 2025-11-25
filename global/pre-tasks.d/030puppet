@@ -8,24 +8,24 @@ set -e
 stamp="$COSMOS_BASE/stamps/puppet-tools-v01.stamp"
 
 if ! test -f "${stamp}" -a -f /usr/bin/puppet; then
-    apt-get update
-    apt-get -y install puppet
-    . /etc/os-release
+	apt-get update
+	apt-get -y install puppet
+	# shellcheck source=/dev/null
+	. /etc/os-release
 
-    # Note: in posix shell, string comparison is done with a single =
-    if [ "${ID}" = "debian" ] && [ "${VERSION_ID}" -ge 12 ] || ([ "${ID}" = "ubuntu" ] && $(dpkg --compare-versions ${VERSION_ID} ge 24.04)) ; then
-      apt-get -y install \
-          cron \
-          puppet-module-camptocamp-augeas \
-          puppet-module-puppetlabs-apt \
-          puppet-module-puppetlabs-concat \
-          puppet-module-puppetlabs-cron-core \
-          puppet-module-puppetlabs-stdlib \
-          puppet-module-puppetlabs-vcsrepo
+	# Note: in posix shell, string comparison is done with a single =
+	if [ "${ID}" = "debian" ] && [ "${VERSION_ID}" -ge 12 ] || ([ "${ID}" = "ubuntu" ] && $(dpkg --compare-versions "${VERSION_ID}" ge 24.04)); then
+		apt-get -y install \
+			cron \
+			puppet-module-camptocamp-augeas \
+			puppet-module-puppetlabs-apt \
+			puppet-module-puppetlabs-concat \
+			puppet-module-puppetlabs-cron-core \
+			puppet-module-puppetlabs-stdlib \
+			puppet-module-puppetlabs-vcsrepo
 
-    fi
+	fi
 
-    mkdir -p "$(dirname "${stamp}")"
-    touch "${stamp}"
+	mkdir -p "$(dirname "${stamp}")"
+	touch "${stamp}"
 fi
-
