@@ -16,7 +16,7 @@ if ! test -d "$COSMOS_BASE"; then
 fi
 
 args=""
-if [ "x$COSMOS_VERBOSE" = "xy" ]; then
+if [ "$COSMOS_VERBOSE" = "y" ]; then
 	args="-v"
 fi
 
