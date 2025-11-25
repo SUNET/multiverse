@@ -3,7 +3,7 @@
 set -e
 
 args=()
-if [ "x$COSMOS_VERBOSE" = "xy" ]; then
+if [ "$COSMOS_VERBOSE" = "y" ]; then
 	args+=('--verbose')
 	args+=('--show_diff')
 else
@@ -12,7 +12,7 @@ fi
 
 if [ -f /usr/bin/puppet ] && [ -d /etc/puppet/manifests ]; then
 	find /etc/puppet/manifests -name \*.pp | while read -r m; do
-		test "x$COSMOS_VERBOSE" = "xy" && echo "$0: Applying Puppet manifest $m"
+		test "$COSMOS_VERBOSE" = "y" && echo "$0: Applying Puppet manifest $m"
 		puppet apply "${args[@]}" "$m"
 	done
 
