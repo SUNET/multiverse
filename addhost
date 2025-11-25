@@ -45,10 +45,13 @@ if test -z "$cmd_hostname"; then
 	exit 1
 fi
 
+proxyjump=()
 if [[ -n $cmd_proxy ]]; then
-	proxyjump="-o ProxyJump=${cmd_proxy}"
+	proxyjump+=("-o")
+	proxyjump+=("ProxyJump=${cmd_proxy}i")
 fi
 
+# shellcheck source=/dev/null
 test -f cosmos.conf && . ./cosmos.conf
 
 _remote=${remote:='ro'}
@@ -70,8 +73,10 @@ fi
 
 if [ "$cmd_do_bootstrap" = "yes" ]; then
 	cosmos_deb=$(find apt/ -maxdepth 1 -name 'cosmos_*.deb' | sort -V | tail -1)
-	scp $proxyjump "$cosmos_deb" apt/bootstrap-cosmos.sh root@"$cmd_hostname":
-	ssh root@"$cmd_hostname" $proxyjump ./bootstrap-cosmos.sh "$cmd_fqdn" "$rrepo" "$rtag"
-	ssh root@"$cmd_hostname" $proxyjump cosmos update
-	ssh root@"$cmd_hostname" $proxyjump cosmos apply
+	scp "${proxyjump[@]}" "$cosmos_deb" apt/bootstrap-cosmos.sh root@"$cmd_hostname":
+	# We want to expand the variables on clientside - shellcheck ignore
+	# shellcheck disable=SC2029
+	ssh root@"$cmd_hostname" "${proxyjump[@]}" ./bootstrap-cosmos.sh "$cmd_fqdn" "$rrepo" "$rtag"
+	ssh root@"$cmd_hostname" "${proxyjump[@]}" cosmos update
+	ssh root@"$cmd_hostname" "${proxyjump[@]}" cosmos apply
 fi
