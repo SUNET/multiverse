@@ -5,7 +5,8 @@
 
 set -e
 
-readonly PROGNAME=$(basename "$0")
+PROGNAME="$(basename "$0")"
+readonly PROGNAME
 readonly LOCKFILE_DIR=/tmp
 readonly LOCK_FD=200
 readonly FLEETLOCK_CONFIG=/etc/run-cosmos-fleetlock-conf
@@ -18,150 +19,150 @@ readonly HEALTHCHECK_DISABLE_FILE=/etc/run-cosmos-healthcheck-disable
 export GIT_PAGER=cat
 
 lock() {
-    local prefix=$1
-    local fd=${2:-$LOCK_FD}
-    local lock_file=$LOCKFILE_DIR/$prefix.lock
+	local prefix=$1
+	local fd=${2:-$LOCK_FD}
+	local lock_file=$LOCKFILE_DIR/$prefix.lock
 
-    # create lock file
-    eval "exec $fd>$lock_file"
+	# create lock file
+	eval "exec $fd>$lock_file"
 
-    # acquier the lock
-    flock -n "$fd" \
-        && return 0 \
-        || return 1
+	# acquier the lock
+	flock -n "$fd" &&
+		return 0 ||
+		return 1
 }
 
 eexit() {
-    local error_str="$*"
+	local error_str="$*"
 
-    echo "$error_str"
-    exit 1
+	echo "$error_str"
+	exit 1
 }
 
 oexit() {
-    local info_str="$*"
+	local info_str="$*"
 
-    echo "$info_str"
-    exit 0
+	echo "$info_str"
+	exit 0
 }
 
 fleetlock_enable_unlock_service() {
-    # In case e.g. the unit file has been removed "FragmentPath" will still
-    # return the old filename until daemon-reload is called, so do that here
-    # before we try checking for the FragmentPath.
-    need_reload=$(systemctl show --property NeedDaemonReload $FLEETLOCK_UNLOCK_SERVICE | awk -F= '{print $2}')
-    if [ "$need_reload" = "yes" ]; then
-        systemctl daemon-reload
-    fi
+	# In case e.g. the unit file has been removed "FragmentPath" will still
+	# return the old filename until daemon-reload is called, so do that here
+	# before we try checking for the FragmentPath.
+	need_reload=$(systemctl show --property NeedDaemonReload $FLEETLOCK_UNLOCK_SERVICE | awk -F= '{print $2}')
+	if [ "$need_reload" = "yes" ]; then
+		systemctl daemon-reload
+	fi
 
-    unit_file=$(systemctl show --property FragmentPath $FLEETLOCK_UNLOCK_SERVICE | awk -F= '{print $2}')
-    if [ -z "$unit_file" ]; then
-        # No unit file matching the service name, do nothing
-        return 0
-    fi
+	unit_file=$(systemctl show --property FragmentPath $FLEETLOCK_UNLOCK_SERVICE | awk -F= '{print $2}')
+	if [ -z "$unit_file" ]; then
+		# No unit file matching the service name, do nothing
+		return 0
+	fi
 
-    # Enable the service if needed
-    systemctl is-enabled --quiet $FLEETLOCK_UNLOCK_SERVICE || systemctl enable --quiet $FLEETLOCK_UNLOCK_SERVICE
+	# Enable the service if needed
+	systemctl is-enabled --quiet $FLEETLOCK_UNLOCK_SERVICE || systemctl enable --quiet $FLEETLOCK_UNLOCK_SERVICE
 }
 
 fleetlock_lock() {
-    if [ ! -f $FLEETLOCK_DISABLE_FILE ] && [ -f $FLEETLOCK_CONFIG ] && [ -x $FLEETLOCK_TOOL ]; then
-        # Make sure the unlock service is enabled before we take a lock if
-        # cosmos ends up rebooting the machine before fleetlock_unlock() is
-        # called.
-        fleetlock_enable_unlock_service || return 1
-        local fleetlock_group=""
-        local optional_args=()
-        # shellcheck source=/dev/null
-        . $FLEETLOCK_CONFIG || return 1
-        if [ -z "$fleetlock_group" ]; then
-            echo "Unable to set fleetlock_group"
-            return 1
-        fi
-        if [ -n "$fleetlock_lock_timeout" ]; then
-            optional_args+=("--timeout")
-            optional_args+=("$fleetlock_lock_timeout")
-        fi
-        echo "Getting fleetlock lock"
-        $FLEETLOCK_TOOL --lock-group "$fleetlock_group" --lock "${optional_args[@]}" || return 1
-    fi
-    return 0
+	if [ ! -f $FLEETLOCK_DISABLE_FILE ] && [ -f $FLEETLOCK_CONFIG ] && [ -x $FLEETLOCK_TOOL ]; then
+		# Make sure the unlock service is enabled before we take a lock if
+		# cosmos ends up rebooting the machine before fleetlock_unlock() is
+		# called.
+		fleetlock_enable_unlock_service || return 1
+		local fleetlock_group=""
+		local optional_args=()
+		# shellcheck source=/dev/null
+		. $FLEETLOCK_CONFIG || return 1
+		if [ -z "$fleetlock_group" ]; then
+			echo "Unable to set fleetlock_group"
+			return 1
+		fi
+		if [ -n "$fleetlock_lock_timeout" ]; then
+			optional_args+=("--timeout")
+			optional_args+=("$fleetlock_lock_timeout")
+		fi
+		echo "Getting fleetlock lock"
+		$FLEETLOCK_TOOL --lock-group "$fleetlock_group" --lock "${optional_args[@]}" || return 1
+	fi
+	return 0
 }
 
 fleetlock_unlock() {
-    if [ ! -f $FLEETLOCK_DISABLE_FILE ] && [ -f $FLEETLOCK_CONFIG ] && [ -x $FLEETLOCK_TOOL ]; then
-        local fleetlock_group=""
-        local optional_args=()
-        # shellcheck source=/dev/null
-        . $FLEETLOCK_CONFIG || return 1
-        if [ -z "$fleetlock_group" ]; then
-            echo "Unable to set fleetlock_group"
-            return 1
-        fi
-        if [ -n "$fleetlock_unlock_timeout" ]; then
-            optional_args+=("--timeout")
-            optional_args+=("$fleetlock_unlock_timeout")
-        fi
-        machine_is_healthy || return 1
-        echo "Releasing fleetlock lock"
-        $FLEETLOCK_TOOL --lock-group "$fleetlock_group" --unlock "${optional_args[@]}" || return 1
-    fi
-    return 0
+	if [ ! -f $FLEETLOCK_DISABLE_FILE ] && [ -f $FLEETLOCK_CONFIG ] && [ -x $FLEETLOCK_TOOL ]; then
+		local fleetlock_group=""
+		local optional_args=()
+		# shellcheck source=/dev/null
+		. $FLEETLOCK_CONFIG || return 1
+		if [ -z "$fleetlock_group" ]; then
+			echo "Unable to set fleetlock_group"
+			return 1
+		fi
+		if [ -n "$fleetlock_unlock_timeout" ]; then
+			optional_args+=("--timeout")
+			optional_args+=("$fleetlock_unlock_timeout")
+		fi
+		machine_is_healthy || return 1
+		echo "Releasing fleetlock lock"
+		$FLEETLOCK_TOOL --lock-group "$fleetlock_group" --unlock "${optional_args[@]}" || return 1
+	fi
+	return 0
 }
 
 machine_is_healthy() {
-    if [ ! -f $HEALTHCHECK_DISABLE_FILE ] && [ -x $HEALTHCHECK_TOOL ]; then
-        local fleetlock_healthcheck_timeout=""
-        local optional_args=()
-        # shellcheck source=/dev/null
-        . $FLEETLOCK_CONFIG || return 1
-        if [ -n "$fleetlock_healthcheck_timeout" ]; then
-            optional_args+=("--timeout")
-            optional_args+=("$fleetlock_healthcheck_timeout")
-        fi
-        echo "Running any health checks"
-        $HEALTHCHECK_TOOL "${optional_args[@]}" || return 1
-    fi
-    return 0
+	if [ ! -f $HEALTHCHECK_DISABLE_FILE ] && [ -x $HEALTHCHECK_TOOL ]; then
+		local fleetlock_healthcheck_timeout=""
+		local optional_args=()
+		# shellcheck source=/dev/null
+		. $FLEETLOCK_CONFIG || return 1
+		if [ -n "$fleetlock_healthcheck_timeout" ]; then
+			optional_args+=("--timeout")
+			optional_args+=("$fleetlock_healthcheck_timeout")
+		fi
+		echo "Running any health checks"
+		$HEALTHCHECK_TOOL "${optional_args[@]}" || return 1
+	fi
+	return 0
 }
 
-main () {
-    if [[ $1 == '--random-sleep' ]]; then
-        shift
-        sleep=$((RANDOM % 300))
+main() {
+	if [[ $1 == '--random-sleep' ]]; then
+		shift
+		sleep=$((RANDOM % 300))
 
-        echo "$0: Sleeping for ${sleep} seconds before attempting to run cosmos"
-        sleep $sleep
-    fi
+		echo "$0: Sleeping for ${sleep} seconds before attempting to run cosmos"
+		sleep $sleep
+	fi
 
-    lock "$PROGNAME" || eexit "Only one instance of $PROGNAME can run at one time."
-    fleetlock_lock || eexit "Unable to acquire fleetlock lock."
-    cosmos "$@" update
-    cosmos "$@" apply
+	lock "$PROGNAME" || eexit "Only one instance of $PROGNAME can run at one time."
+	fleetlock_lock || eexit "Unable to acquire fleetlock lock."
+	cosmos "$@" update
+	cosmos "$@" apply
 
-    if [ -f /var/run/reboot-required ] && [ -f /var/run/cosmos-reboot-in-progress ]; then
-        oexit "${PROGNAME}: Will not attempt fleetlock_unlock (exiting early) due to existing reboot files"
-    fi
+	if [ -f /var/run/reboot-required ] && [ -f /var/run/cosmos-reboot-in-progress ]; then
+		oexit "${PROGNAME}: Will not attempt fleetlock_unlock (exiting early) due to existing reboot files"
+	fi
 
-    fleetlock_unlock || eexit "Unable to release fleetlock lock."
+	fleetlock_unlock || eexit "Unable to release fleetlock lock."
 
-    touch /var/run/last-cosmos-ok.stamp
+	touch /var/run/last-cosmos-ok.stamp
 
-    if [ -f /cosmos-reboot ]; then
-        rm -f /cosmos-reboot
-        reboot
-    fi
+	if [ -f /cosmos-reboot ]; then
+		rm -f /cosmos-reboot
+		reboot
+	fi
 }
 
 # Most of the time we just pass on any arguments to the underlying cosmos
 # tools, if adding special cases here make sure to not shadow any arguments
 # (like "-v") which users expect to be passed on to cosmos.
 case "$1" in
-    "fleetlock-unlock")
-        lock "$PROGNAME" || oexit "$PROGNAME appears locked by a running run-cosmos, let it handle unlocking instead."
-        fleetlock_unlock || eexit "Unable to release fleetlock lock."
-        ;;
-    *)
-        main "$@"
-        ;;
+"fleetlock-unlock")
+	lock "$PROGNAME" || oexit "$PROGNAME appears locked by a running run-cosmos, let it handle unlocking instead."
+	fleetlock_unlock || eexit "Unable to release fleetlock lock."
+	;;
+*)
+	main "$@"
+	;;
 esac
