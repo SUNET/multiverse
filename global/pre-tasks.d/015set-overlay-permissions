@@ -15,7 +15,7 @@ if ! test -d "$MODEL_OVERLAY"; then
 fi
 
 args=""
-if [ "x$COSMOS_VERBOSE" = "xy" ]; then
+if [ "$COSMOS_VERBOSE" = "y" ]; then
 	args="-v"
 fi
 
