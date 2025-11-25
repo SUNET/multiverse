@@ -25,3 +25,10 @@ hierarchy:
 
   - name: "Data common to whole environment"
     path: "common.yaml"
+
+  - name: "Cosmos shared secrets"
+    path: "shared-cosmos.eyaml"
+    lookup_key: eyaml_lookup_key
+    options:
+      pkcs7_private_key: /etc/hiera/eyaml/shared-cosmos.pkcs7.key
+      pkcs7_public_key:  /etc/hiera/eyaml/shared-cosmos.pkcs7.pem
