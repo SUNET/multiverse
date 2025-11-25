@@ -26,7 +26,7 @@ fi
 
 if [ ! -s $GNUPGHOME/secring.gpg ]; then
 
-	if [ "x$1" != "x--force" ]; then
+	if [ "$1" != "--force" ]; then
 		echo ""
 		echo "Automatic Hiera-GPG key generation DISABLED (to not block on missing entropy)"
 		echo ""
