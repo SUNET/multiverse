@@ -2,7 +2,7 @@ name: reviewdog
 on:
   push:
   pull_request:
-    branches: [ "master" ]
+    branches: [ "main" ]
 jobs:
   shellcheck:
     name: runner / shellcheck
