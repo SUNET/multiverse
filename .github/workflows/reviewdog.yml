@@ -10,7 +10,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: shellcheck
-        uses: reviewdog/action-shellcheck@v1.32.0
+        uses: reviewdog/action-shellcheck@4c07458293ac342d477251099501a718ae5ef86e # v1.32.0
         with:
           reporter: github-pr-review
           check_all_files_with_shebangs: "true"
