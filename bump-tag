@@ -33,7 +33,7 @@ fi
 if [[ -n "${tag}" ]]; then
     tagpfx="${tag}"
 else
-    tagpfx=${deftag}
+    tagpfx="${deftag}"
 fi
 
 # This is the current branch that Git will diff against.

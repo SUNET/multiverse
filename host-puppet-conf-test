@@ -17,7 +17,7 @@ fi
 
 # Check if cosmos or puppet is already running on host
 echo "Checking if puppet or cosmos is already running..."
-ssh root@$HOSTNAME ps aux | grep -Ev "grep|edit-secrets|gpg-agent" | grep -Eq "cosmos|puppet"
+ssh root@"$HOSTNAME" ps aux | grep -Ev "grep|edit-secrets|gpg-agent" | grep -Eq "cosmos|puppet"
 
 if [ $? -eq 1 ]; then
 	echo "Copying files to host..."
