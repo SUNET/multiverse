@@ -107,7 +107,7 @@ if [ -f "$CONFIG" ] || [ "$LOCALCONFIG" ]; then
 
 	# Cleanup removed puppet modules from CACHE_DIR
 	for MODULE in "$CACHE_DIR"/staging/*; do
-		if ! grep -h -E -q "^$MODULE\s+" "$CONFIG" "$LOCALCONFIG"; then
+		if ! grep -h -E -q "^$MODULE\s+" "${files[@]}"; then
 			rm -rf "$CACHE_DIR"/{scm,staging}/"$MODULE"
 		fi
 	done
