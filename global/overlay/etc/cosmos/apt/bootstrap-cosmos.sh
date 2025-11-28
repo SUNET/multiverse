@@ -44,7 +44,7 @@ fi
 # If this cloud-config is set, it will interfere with our changes to /etc/hosts
 # The configuration seems to move around between cloud-config versions
 for file in /etc/cloud/cloud.cfg /etc/cloud/cloud.cfg.d/01_debian_cloud.cfg; do
-	if [ -f ${file} ]; then
+	if [[ -f ${file} ]]; then
 		sed -i 's/manage_etc_hosts: true/manage_etc_hosts: false/g' ${file}
 	fi
 done
