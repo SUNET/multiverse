@@ -3,19 +3,19 @@
 set -e
 
 cmd_hostname="$1"
-if test -z "$cmd_hostname"; then
+if [[ -z "$cmd_hostname" ]]; then
 	echo "Usage: $0 HOSTNAME REPO TAGPATTERN"
 	exit 1
 fi
 
 cmd_repo="$2"
-if test -z "$cmd_repo"; then
+if [[ -z "$cmd_repo" ]]; then
 	echo "Usage $0 HOSTNAME REPO TAGPATTERN"
 	exit 2
 fi
 
 cmd_tags="$3"
-if test -z "$cmd_tags"; then
+if [[ -z "$cmd_tags" ]]; then
 	echo "Usage $0 HOSTNAME REPO TAGPATTERN"
 	exit 3
 fi
@@ -37,7 +37,7 @@ done
 cosmos_deb=$(find ./ -maxdepth 1 -name 'cosmos_*.deb' | sort -V | tail -1)
 dpkg -i "$cosmos_deb"
 
-if ! test -d /var/cache/cosmos/repo; then
+if [[ ! -d /var/cache/cosmos/repo ]]; then
 	cosmos clone "$cmd_repo"
 fi
 
