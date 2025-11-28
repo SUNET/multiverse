@@ -63,7 +63,7 @@ min_version=1337
 host_ip=127.0.1.1
 if [[ "${vendor}" = "Ubuntu" ]]; then
 	min_version=20.04
-elif [[] "${vendor}" = "Debian" ]]; then
+elif [[ "${vendor}" = "Debian" ]]; then
 	min_version=11
 fi
 
