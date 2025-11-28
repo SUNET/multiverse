@@ -14,99 +14,104 @@ reset='\e[0m'
 red='\033[01;31m'
 
 stage_module() {
-  rm -rf $CACHE_DIR/staging/$1
-  git archive --format=tar --prefix=$1/ $2 | (cd $CACHE_DIR/staging/ && tar xf -)
+	rm -rf "$CACHE_DIR/staging/$1"
+	git archive --format=tar --prefix="$1"/ "$2" | (cd "$CACHE_DIR/staging/" && tar xf -)
 }
 
-if [ -f $CONFIG -o $LOCALCONFIG ]; then
-  if [ ! -d $MODULES_DIR ]; then
-    mkdir -p $MODULES_DIR
-  fi
-  if [ ! -d $CACHE_DIR ]; then
-    mkdir -p $CACHE_DIR/{scm,staging}
-  fi
+if [ -f "$CONFIG" ] || [ "$LOCALCONFIG" ]; then
+	if [ ! -d "$MODULES_DIR" ]; then
+		mkdir -p "$MODULES_DIR"
+	fi
+	if [ ! -d "$CACHE_DIR" ]; then
+		mkdir -p "$CACHE_DIR"/{scm,staging}
+	fi
 
-  test -f $CONFIG || CONFIG=''
-  test -f $LOCALCONFIG || LOCALCONFIG=''
+	files=()
+	if [ -f "$CONFIG" ]; then
+		files+=("$CONFIG")
+	fi
 
-  # First pass to clone any new modules, and update those marked for updating.
-  grep -h -E -v "^#" $CONFIG $LOCALCONFIG | sort | (
-    while read module src update pattern; do
-      # We only support git://, file:/// and https:// urls at the moment
-      if [ "${src:0:6}" = "git://" -o "${src:0:8}" = "file:///" -o "${src:0:8}" = "https://" ]; then
-        if [ ! -d $CACHE_DIR/scm/$module ]; then
-          git clone -q $src $CACHE_DIR/scm/$module
-        elif [ -d $CACHE_DIR/scm/$module/.git ]; then
-          if [ "$update" = "yes" ]; then
-            cd $CACHE_DIR/scm/$module
-            if [ "$src" != "$(git config remote.origin.url)" ]; then
-              git config remote.origin.url $src
-            fi
-            # Support master branch being renamed to main
-            git branch --all | grep -q '^[[:space:]]*remotes/origin/main$' && git checkout main
-            # Update repo and clean out any local inconsistencies
-            git pull -q || (git fetch && git reset --hard)
-          else
-            continue
-          fi
-        else
-          echo -e "${red}ERROR: Ignoring non-git repository${reset}"
-          continue
-        fi
-      elif [[ "$src" =~ .*:// ]]; then
-        echo -e "${red}ERROR: Don't know how to install '${src}'${reset}"
-        continue
-      else
-        echo -e "${bold}WARNING - attempting UNSAFE installation/upgrade of puppet-module ${module} from ${src}${reset}"
-        if [ ! -d /etc/puppet/modules/$module ]; then
-          puppet module install $src
-        elif [ "$update" = "yes" ]; then
-          puppet module upgrade $src
-        fi
-      fi
-    done
-  )
+	if [ -f "$LOCALCONFIG" ]; then
+		files+=("$LOCALCONFIG")
+	fi
 
-  # Second pass to verify the signatures on all modules and stage those that
-  # have good signatures.
-  grep -h -E -v "^#" $CONFIG $LOCALCONFIG | sort | (
-    while read module src update pattern; do
-      # We only support git://, file:/// and https:// urls at the moment
-      if [ "${src:0:6}" = "git://" -o "${src:0:8}" = "file:///" -o "${src:0:8}" = "https://" ]; then
-        # Verify git tag
-        cd $CACHE_DIR/scm/$module
-        TAG=$(git tag -l "${pattern:-*}" | sort | tail -1)
-        if [ "$COSMOS_VERBOSE" = "y" ]; then
-          echo -e "Checking signature on puppet-module:tag ${bold}${module}:${TAG}${reset}"
-        fi
-        if [ -z "$TAG" ]; then
-          echo -e "${red}ERROR: No git tag found for pattern '${pattern:-*}' on puppet-module ${module}${reset}"
-          continue
-        fi
-        git tag -v $TAG &> /dev/null
-        if [ $? == 0 ]; then
-          #if [ "$COSMOS_VERBOSE" = "y" ]; then
-          #  # short output on good signature
-          #  git tag -v $TAG 2>&1 | grep "gpg: Good signature"
-          #fi
-          # Put archive in staging since tag verified OK
-          stage_module $module $TAG
-        else
-          echo -e "${red}FAILED signature check on puppet-module ${module}${reset}"
-          git tag -v $TAG
-	  echo ''
-        fi
-      fi
-    done
-  )
+	# First pass to clone any new modules, and update those marked for updating.
+	grep -h -E -v "^#" "${files[@]}" | sort | (
+		while read -r module src update pattern; do
+			# We only support git://, file:/// and https:// urls at the moment
+			if [ "${src:0:6}" = "git://" ] || [ "${src:0:8}" = "file:///" ] || [ "${src:0:8}" = "https://" ]; then
+				if [ ! -d "$CACHE_DIR/scm/$module" ]; then
+					git clone -q "$src" "$CACHE_DIR/scm/$module"
+				elif [ -d "$CACHE_DIR/scm/$module/.git" ]; then
+					if [ "$update" = "yes" ]; then
+						cd "$CACHE_DIR/scm/$module" || exit 1
+						if [ "$src" != "$(git config remote.origin.url)" ]; then
+							git config remote.origin.url "$src"
+						fi
+						# Support master branch being renamed to main
+						git branch --all | grep -q '^[[:space:]]*remotes/origin/main$' && git checkout main
+						# Update repo and clean out any local inconsistencies
+						git pull -q || (git fetch && git reset --hard)
+					else
+						continue
+					fi
+				else
+					echo -e "${red}ERROR: Ignoring non-git repository${reset}"
+					continue
+				fi
+			elif [[ "$src" =~ .*:// ]]; then
+				echo -e "${red}ERROR: Don't know how to install '${src}'${reset}"
+				continue
+			else
+				echo -e "${bold}WARNING - attempting UNSAFE installation/upgrade of puppet-module ${module} from ${src}${reset}"
+				if [ ! -d "/etc/puppet/modules/$module" ]; then
+					puppet module install "$src"
+				elif [ "$update" = "yes" ]; then
+					puppet module upgrade "$src"
+				fi
+			fi
+		done
+	)
 
-  # Cleanup removed puppet modules from CACHE_DIR
-  for MODULE in $(ls -1 $CACHE_DIR/staging/); do
-    if ! grep -h -E -q "^$MODULE\s+" $CONFIG $LOCALCONFIG; then
-      rm -rf $CACHE_DIR/{scm,staging}/$MODULE
-    fi
-  done
+	# Second pass to verify the signatures on all modules and stage those that
+	# have good signatures.
+	grep -h -E -v "^#" "${files[@]}" | sort | (
+		while read -r module src update pattern; do
+			# We only support git://, file:/// and https:// urls at the moment
+			if [ "${src:0:6}" = "git://" ] || [ "${src:0:8}" = "file:///" ] || [ "${src:0:8}" = "https://" ]; then
+				# Verify git tag
+				cd "$CACHE_DIR/scm/$module" || exit 1
+				TAG=$(git tag -l "${pattern:-*}" | sort | tail -1)
+				if [ "$COSMOS_VERBOSE" = "y" ]; then
+					echo -e "Checking signature on puppet-module:tag ${bold}${module}:${TAG}${reset}"
+				fi
+				if [ -z "$TAG" ]; then
+					echo -e "${red}ERROR: No git tag found for pattern '${pattern:-*}' on puppet-module ${module}${reset}"
+					continue
+				fi
+				if git tag -v "$TAG" &>/dev/null; then
+					#if [ "$COSMOS_VERBOSE" = "y" ]; thengg
+					#  # short output on good signature
+					#  git tag -v $TAG 2>&1 | grep "gpg: Good signature"
+					#fi
+					# Put archive in staging since tag verified OK
+					stage_module "$module" "$TAG"
+				else
+					echo -e "${red}FAILED signature check on puppet-module ${module}${reset}"
+					git tag -v "$TAG"
+					echo ''
+				fi
+			fi
+		done
+	)
 
-  # Installing verified puppet modules
-  rsync --archive --delete $CACHE_DIR/staging/ $MODULES_DIR/
+	# Cleanup removed puppet modules from CACHE_DIR
+	for MODULE in "$CACHE_DIR"/staging/*; do
+		if ! grep -h -E -q "^$MODULE\s+" "${files[@]}"; then
+			rm -rf "$CACHE_DIR"/{scm,staging}/"$MODULE"
+		fi
+	done
+
+	# Installing verified puppet modules
+	rsync --archive --delete "$CACHE_DIR/staging/" "$MODULES_DIR/"
 fi

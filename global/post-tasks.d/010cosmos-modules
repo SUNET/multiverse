@@ -12,23 +12,23 @@
 set -e
 
 if [ -f "${COSMOS_MODEL}/overlay/etc/puppet/cosmos-modules.conf" ]; then
-    test "$COSMOS_VERBOSE" = "y" && \
-        echo "$0: /etc/puppet/cosmos-modules.conf is present in the model, exiting"
-    exit 0
+	test "$COSMOS_VERBOSE" = "y" &&
+		echo "$0: /etc/puppet/cosmos-modules.conf is present in the model, exiting"
+	exit 0
 fi
 
 if [ -x /etc/puppet/setup_cosmos_modules ]; then
-    test "$COSMOS_VERBOSE" = "y" && \
-        echo "$0: Updating /etc/puppet/cosmos-modules.conf with /etc/puppet/setup_cosmos_modules"
-    /etc/puppet/setup_cosmos_modules
+	test "$COSMOS_VERBOSE" = "y" &&
+		echo "$0: Updating /etc/puppet/cosmos-modules.conf with /etc/puppet/setup_cosmos_modules"
+	/etc/puppet/setup_cosmos_modules
 
-    test -f /etc/puppet/cosmos-modules.conf && exit 0
+	test -f /etc/puppet/cosmos-modules.conf && exit 0
 fi
 
-test "$COSMOS_VERBOSE" = "y" && \
-    echo "$0: Creating/updating /etc/puppet/cosmos-modules.conf with defaults from this script"
+test "$COSMOS_VERBOSE" = "y" &&
+	echo "$0: Creating/updating /etc/puppet/cosmos-modules.conf with defaults from this script"
 
-cat > /etc/puppet/cosmos-modules.conf << EOF
+cat >/etc/puppet/cosmos-modules.conf <<EOF
 # File created/updated by $0
 #
 concat          puppetlabs/concat     yes

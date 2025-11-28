@@ -2,11 +2,17 @@
 
 test -f /etc/no-automatic-cosmos && exit 0
 
-RUN_COSMOS='/usr/local/bin/run-cosmos --random-sleep'
-SCRIPTHERDER_CMD=''
+RUN_COSMOS=('/usr/local/bin/run-cosmos' '--random-sleep')
+SCRIPTHERDER_CMD=()
 
 if [ -x /usr/local/bin/scriptherder ]; then
-   SCRIPTHERDER_CMD='/usr/local/bin/scriptherder --mode wrap --syslog --name cosmos --'
+	SCRIPTHERDER_CMD+=('/usr/local/bin/scriptherder')
+	SCRIPTHERDER_CMD+=('--mode')
+	SCRIPTHERDER_CMD+=('wrap')
+	SCRIPTHERDER_CMD+=('--syslog')
+	SCRIPTHERDER_CMD+=('--name')
+	SCRIPTHERDER_CMD+=('cosmos')
+	SCRIPTHERDER_CMD+=('--')
 fi
 
-exec ${SCRIPTHERDER_CMD} ${RUN_COSMOS} "$@"
+exec "${SCRIPTHERDER_CMD[@]}" "${RUN_COSMOS[@]}" "$@"

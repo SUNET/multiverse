@@ -5,42 +5,53 @@ cmd_do_bootstrap="no"
 cmd_fqdn=""
 
 function usage() {
-   echo "Usage: $0 [-h] [-b] [-n fqdn] [--] [<host>]"
-   echo "  -h  show help"
-   echo "  -b  bootstrap <host> (using ssh)"
-   echo "  -n  specify FQDN (if not the same as <host>)"
-   echo ""
-   echo "  <host> can be an IP number, or something that resolves to one"
+	echo "Usage: $0 [-h] [-b] [-n fqdn] [--] [<host>]"
+	echo "  -h  show help"
+	echo "  -b  bootstrap <host> (using ssh)"
+	echo "  -n  specify FQDN (if not the same as <host>)"
+	echo ""
+	echo "  <host> can be an IP number, or something that resolves to one"
 }
 
 while getopts "bhn:p:" this; do
-   case "${this}" in
-      h) usage; exit 0;;
-      b) cmd_do_bootstrap="yes" ;;
-      n) cmd_fqdn="${OPTARG}" ;;
-      p) cmd_proxy="${OPTARG}" ;;
-      *) echo "Unknown option ${this}"; echo ""; usage; exit 1;;
-   esac
+	case "${this}" in
+	h)
+		usage
+		exit 0
+		;;
+	b) cmd_do_bootstrap="yes" ;;
+	n) cmd_fqdn="${OPTARG}" ;;
+	p) cmd_proxy="${OPTARG}" ;;
+	*)
+		echo "Unknown option ${this}"
+		echo ""
+		usage
+		exit 1
+		;;
+	esac
 done
-shift $((OPTIND-1))
+shift $((OPTIND - 1))
 
 if [[ ! $cmd_hostname ]]; then
-   cmd_hostname="$1"
+	cmd_hostname="$1"
 fi
 
 if [[ ! $cmd_fqdn ]]; then
-   cmd_fqdn="$cmd_hostname"
+	cmd_fqdn="$cmd_hostname"
 fi
 
 if test -z "$cmd_hostname"; then
-    usage
-    exit 1
+	usage
+	exit 1
 fi
 
+proxyjump=()
 if [[ -n $cmd_proxy ]]; then
-  proxyjump="-o ProxyJump=${cmd_proxy}"
+	proxyjump+=("-o")
+	proxyjump+=("ProxyJump=${cmd_proxy}i")
 fi
 
+# shellcheck source=/dev/null
 test -f cosmos.conf && . ./cosmos.conf
 
 _remote=${remote:='ro'}
@@ -49,21 +60,23 @@ rrepo=${repo:="$defrepo"}
 rtag=${tag:="changeme"}
 
 if [[ ! $rrepo ]]; then
-    echo "$0: repo not set in cosmos.conf and no git remote named '${_remote}' found"
-    exit 1
+	echo "$0: repo not set in cosmos.conf and no git remote named '${_remote}' found"
+	exit 1
 fi
 
 if [ ! -d "$cmd_fqdn" ]; then
-   cp -pr default "$cmd_fqdn"
-   git add "$cmd_fqdn"
-   git commit -m "$cmd_fqdn added" "$cmd_fqdn"
-   ./bump-tag
+	cp -pr default "$cmd_fqdn"
+	git add "$cmd_fqdn"
+	git commit -m "$cmd_fqdn added" "$cmd_fqdn"
+	./bump-tag
 fi
 
 if [ "$cmd_do_bootstrap" = "yes" ]; then
-   cosmos_deb=$(find apt/ -maxdepth 1 -name 'cosmos_*.deb' | sort -V | tail -1)
-   scp $proxyjump "$cosmos_deb" apt/bootstrap-cosmos.sh root@"$cmd_hostname":
-   ssh root@"$cmd_hostname" $proxyjump ./bootstrap-cosmos.sh "$cmd_fqdn" "$rrepo" "$rtag"
-   ssh root@"$cmd_hostname" $proxyjump cosmos update
-   ssh root@"$cmd_hostname" $proxyjump cosmos apply
+	cosmos_deb=$(find apt/ -maxdepth 1 -name 'cosmos_*.deb' | sort -V | tail -1)
+	scp "${proxyjump[@]}" "$cosmos_deb" apt/bootstrap-cosmos.sh root@"$cmd_hostname":
+	# We want to expand the variables on clientside - shellcheck ignore
+	# shellcheck disable=SC2029
+	ssh root@"$cmd_hostname" "${proxyjump[@]}" ./bootstrap-cosmos.sh "$cmd_fqdn" "$rrepo" "$rtag"
+	ssh root@"$cmd_hostname" "${proxyjump[@]}" cosmos update
+	ssh root@"$cmd_hostname" "${proxyjump[@]}" cosmos apply
 fi
