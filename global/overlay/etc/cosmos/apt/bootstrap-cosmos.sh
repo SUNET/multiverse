@@ -109,7 +109,7 @@ mkdir -p /var/cache/scriptherder
 
 (
 	date
-	nohup cosmos -v update && nohup cosmos -v apply && rm /etc/run-cosmos-at-boot
+	nohup cosmos -v update && nohup cosmos -v apply
 	date
 ) 2>&1 | tee /var/log/cosmos.log
 
