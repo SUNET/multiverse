@@ -61,9 +61,9 @@ vendor=$(lsb_release -is)
 version=$(lsb_release -rs)
 min_version=1337
 host_ip=127.0.1.1
-if [ "${vendor}" = "Ubuntu" ]; then
+if [[ "${vendor}" = "Ubuntu" ]]; then
 	min_version=20.04
-elif [ "${vendor}" = "Debian" ]; then
+elif [[] "${vendor}" = "Debian" ]]; then
 	min_version=11
 fi
 
@@ -86,7 +86,7 @@ _host_type=$(echo "$cmd_hostname" | cut -d - -f 1)
 # $COSMOS_REPO should be handles as $PATH without expansion at this stage
 # shellcheck disable=SC2016
 models_array=('\$COSMOS_REPO/'"$cmd_hostname/")
-if [ -d "/var/cache/cosmos/repo/${_host_type}-common" ]; then
+if [[ -d "/var/cache/cosmos/repo/${_host_type}-common" ]]; then
 	# shellcheck disable=SC2016
 	models_array+=('\$COSMOS_REPO/'"${_host_type}-common/")
 fi
