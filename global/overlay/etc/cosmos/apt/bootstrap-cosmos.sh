@@ -99,13 +99,13 @@ echo "${host_ip} ${cmd_hostname} ${short}" >>/etc/hosts
 _host_type=$(echo "$cmd_hostname" | cut -d - -f 1)
 # $COSMOS_REPO should be handles as $PATH without expansion at this stage
 # shellcheck disable=SC2016
-models_array=('$COSMOS_REPO/'"$cmd_hostname/")
+models_array=('\$COSMOS_REPO/'"$cmd_hostname/")
 if [ -d "/var/cache/cosmos/repo/${_host_type}-common" ]; then
 	# shellcheck disable=SC2016
-	models_array+=('$COSMOS_REPO/'"${_host_type}-common/")
+	models_array+=('\$COSMOS_REPO/'"${_host_type}-common/")
 fi
 # shellcheck disable=SC2016
-models_array+=('$COSMOS_REPO/global/')
+models_array+=('\$COSMOS_REPO/global/')
 models=$(
 	IFS=:
 	echo "${models_array[*]}"
