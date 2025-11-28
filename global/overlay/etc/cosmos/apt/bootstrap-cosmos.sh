@@ -41,20 +41,6 @@ if ! test -d /var/cache/cosmos/repo; then
 	cosmos clone "$cmd_repo"
 fi
 
-# Re-run cosmos at reboot until it succeeds - use bash -l to get working proxy settings.
-# It is possible the file does not exist or contains no matching lines,
-# both cases are OK
-grep -v "^exit 0" /etc/rc.local >/etc/rc.local.new || true
-(
-	echo ""
-	echo "test -f /etc/run-cosmos-at-boot && (bash -l cosmos -v update; bash -l cosmos -v apply && rm /etc/run-cosmos-at-boot)"
-	echo ""
-	echo "exit 0"
-) >>/etc/rc.local.new
-mv -f /etc/rc.local.new /etc/rc.local
-
-touch /etc/run-cosmos-at-boot
-
 # If this cloud-config is set, it will interfere with our changes to /etc/hosts
 # The configuration seems to move around between cloud-config versions
 for file in /etc/cloud/cloud.cfg /etc/cloud/cloud.cfg.d/01_debian_cloud.cfg; do
