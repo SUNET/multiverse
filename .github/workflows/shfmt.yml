@@ -1,0 +1,11 @@
+name: shfmt
+on: [pull_request]
+jobs:
+  shfmt:
+    name: runner / shfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: reviewdog/action-shfmt@d8f080930b9be5847b4f97e9f4122b81a82aaeac # v1.0.4
+        with:
+          shfmt_flags: ""

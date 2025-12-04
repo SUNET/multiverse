@@ -10,21 +10,21 @@ self=$(basename "$0")
 MODEL_OVERLAY="$COSMOS_MODEL/overlay"
 
 if ! test -d "$MODEL_OVERLAY"; then
-    test -z "$COSMOS_VERBOSE" || echo "$self: overlay is a no-op"
-    exit 0
+	test -z "$COSMOS_VERBOSE" || echo "$self: overlay is a no-op"
+	exit 0
 fi
 
 args=""
-if [ "x$COSMOS_VERBOSE" = "xy" ]; then
-    args="-v"
+if [ "$COSMOS_VERBOSE" = "y" ]; then
+	args="-v"
 fi
 
 if [ -d "$MODEL_OVERLAY/root" ]; then
-    chown ${args} root:root "$MODEL_OVERLAY"/root
-    chmod ${args} 0700 "$MODEL_OVERLAY"/root
+	chown ${args} root:root "$MODEL_OVERLAY"/root
+	chmod ${args} 0700 "$MODEL_OVERLAY"/root
 fi
 
 if [ -d "$MODEL_OVERLAY/root/.ssh" ]; then
-    chown ${args} -R root:root "$MODEL_OVERLAY"/root/.ssh
-    chmod ${args} 0700 "$MODEL_OVERLAY"/root/.ssh
+	chown ${args} -R root:root "$MODEL_OVERLAY"/root/.ssh
+	chmod ${args} 0700 "$MODEL_OVERLAY"/root/.ssh
 fi

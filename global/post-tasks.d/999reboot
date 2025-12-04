@@ -2,39 +2,39 @@
 
 if [[ -f /var/run/reboot-required && -f /etc/cosmos-automatic-reboot ]]; then
 
+	# May contain ALLOW_REBOOT_AT=
+	# Eg. ALLOW_REBOOT_AT=06
+	# shellcheck source=/dev/null
+	. /etc/cosmos-automatic-reboot
 
-  # May contain ALLOW_REBOOT_AT=
-  # Eg. ALLOW_REBOOT_AT=06
-  . /etc/cosmos-automatic-reboot
+	if [ -n "${ALLOW_REBOOT_AT}" ]; then
+		if [ "${ALLOW_REBOOT_AT}" != "$(date +%H)" ]; then
+			echo "Scheduled to reboot at ${ALLOW_REBOOT_AT}"
+			exit
+		fi
+	fi
 
-  if [ -n "${ALLOW_REBOOT_AT}" ]; then
-    if [ "${ALLOW_REBOOT_AT}" != "$(date +%H)" ]; then
-      echo "Scheduled to reboot at ${ALLOW_REBOOT_AT}"
-      exit
-    fi
-  fi
+	if [[ $HOSTNAME =~ -tug- ]]; then
+		# Reboot hosts in site TUG with 15 seconds delay (enough to manually
+		# cancel the reboot if logged in and seeing the 'emerg' message broadcasted to console)
+		sleep=15
+	elif [[ $HOSTNAME =~ -fre- ]]; then
+		# reboot hosts in site FRE with 15+180 to 15+180+180 seconds delay
+		sleep=$((180 + (RANDOM % 180)))
+	elif [[ $HOSTNAME =~ -lla- ]]; then
+		# reboot hosts in site LLA with 15+180+180 to 15+180+180+180 seconds delay
+		sleep=$((375 + (RANDOM % 180)))
+	else
+		# reboot hosts in any other site with 15 to 315 seconds delay
+		sleep=$((15 + (RANDOM % 300)))
+	fi
 
-    if [[ $HOSTNAME =~ -tug- ]]; then
-	# Reboot hosts in site TUG with 15 seconds delay (enough to manually
-	# cancel the reboot if logged in and seeing the 'emerg' message broadcasted to console)
-	sleep=15
-    elif [[ $HOSTNAME =~ -fre- ]]; then
-	# reboot hosts in site FRE with 15+180 to 15+180+180 seconds delay
-	sleep=$(( 180 + ($RANDOM % 180)))
-    elif [[ $HOSTNAME =~ -lla- ]]; then
-	# reboot hosts in site LLA with 15+180+180 to 15+180+180+180 seconds delay
-	sleep=$(( 375 + ($RANDOM % 180)))
-    else
-	# reboot hosts in any other site with 15 to 315 seconds delay
-	sleep=$(( 15 + ($RANDOM % 300)))
-    fi
-
-    logger -p local0.emerg -i -t cosmos-automatic-reboot "Rebooting automatically in $sleep seconds (if /var/run/reboot-required still exists)"
-    sleep $sleep
-    if [ -f /var/run/reboot-required ]; then
-	logger -p local0.crit -i -t cosmos-automatic-reboot "Rebooting automatically"
-	# Signal to run-cosmos
-	touch /var/run/cosmos-reboot-in-progress
-	reboot
-    fi
+	logger -p local0.emerg -i -t cosmos-automatic-reboot "Rebooting automatically in $sleep seconds (if /var/run/reboot-required still exists)"
+	sleep $sleep
+	if [ -f /var/run/reboot-required ]; then
+		logger -p local0.crit -i -t cosmos-automatic-reboot "Rebooting automatically"
+		# Signal to run-cosmos
+		touch /var/run/cosmos-reboot-in-progress
+		reboot
+	fi
 fi
