@@ -2,7 +2,7 @@
 
 ## 1st Step ##
 
-Create an overlay folder (like `example-common`), or skip this step if you're going to use `gloabl`.
+Create an overlay folder (like `example-common`), or skip this step if you're going to use `global`.
 
 Then select one of the hosts in your group and use `scripts/create-shared-cosmos-secret.sh`
 to generate a shared key pair like this:
