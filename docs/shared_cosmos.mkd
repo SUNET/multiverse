@@ -2,8 +2,13 @@
 
 ## 1st Step ##
 
-Use scripts/create-shared-cosmos-secret.sh to generate a
-shared key pair and configure a overlay folder (example global).
+Create an overlay folder (like `example-common`), or skip this step if you're going to use `global`.
+
+Then select one of the hosts in your group and use `scripts/create-shared-cosmos-secret.sh`
+to generate a shared key pair like this:
+```
+scripts/create-shared-cosmos-secret.sh -h <FQDN> -o <OVERLAY_FOLDER>
+```
 
 ## 2nd Step ##
 
@@ -22,11 +27,12 @@ class <CLASS-NAME> {
 
   $shared_cosmos_key_exists = find_file($shared_cosmos_key)
 
+  # run-cosmos has to run twice before this condition will pass
   if $shared_cosmos_key_exists {
     <CODE USING THE SHARED SECRET>
   }
   else {
-    warning("Missing ${shared_cosmos_key} - no cdb will be created this round. Trying to create file.")
+    warning("Missing ${shared_cosmos_key} - trying to create file.")
     sunet::snippets::secret_file { $shared_cosmos_key:
       hiera_key => 'shared_cosmos_hiera_key'
     }
@@ -40,6 +46,11 @@ Add the above class on the hosts that will use shared secrets using
 cosmos-rules (or cosmos-site.pp).
 
 ## 5th Step ##
+
+Make sure each host has your overlay folder added to `COSMOS_REPO_MODELS` in `/etc/cosmos/cosmos.conf`, like this:
+```
+COSMOS_REPO_MODELS="$COSMOS_REPO/<FQDN>/:$COSMOS_REPO/<OVERLAY_FOLDER>/:$COSMOS_REPO/global/"
+```
 
 Add secrets to the shared file using
 "edit-secrets ***host*** ***overlay-folder***".
