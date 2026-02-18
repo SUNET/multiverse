@@ -27,15 +27,20 @@ class <CLASS-NAME> {
 
   $shared_cosmos_key_exists = find_file($shared_cosmos_key)
 
+  $shared_cosmos_hiera_key = lookup('shared_cosmos_hiera_key', Optional[String], 'first', undef)
+
   # run-cosmos has to run twice before this condition will pass
   if $shared_cosmos_key_exists {
     <CODE USING THE SHARED SECRET>
   }
-  else {
+  elsif $shared_cosmos_hiera_key {
     warning("Missing ${shared_cosmos_key} - trying to create file.")
     sunet::snippets::secret_file { $shared_cosmos_key:
       hiera_key => 'shared_cosmos_hiera_key'
     }
+  }
+  else {
+    warning("Missing ${shared_cosmos_key} and Hiera key 'shared_cosmos_hiera_key' not found - skipping file creation.")
   }
 }
 ```
