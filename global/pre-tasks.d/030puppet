@@ -10,6 +10,7 @@ stamp="$COSMOS_BASE/stamps/puppet-tools-v01.stamp"
 if ! test -f "${stamp}" -a -f /usr/bin/puppet; then
 	apt-get update
 	apt-get -y install puppet
+	apt-get -y python3-debian
 	# shellcheck source=/dev/null
 	. /etc/os-release
 
