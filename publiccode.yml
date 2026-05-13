@@ -1,4 +1,4 @@
-publiccodeYmlVersion: "0.4"
+publiccodeYmlVersion: "0"
 
 name: multiverse
 url: "https://github.com/SUNET/multiverse.git"
@@ -18,7 +18,13 @@ description:
       System Operations using Cosmos & Puppet
 
     longDescription: >
-      System Operations using Cosmos & Puppet
+      Multiverse is a template for combining Cosmos and Puppet to operate
+      systems and services at small to mid-sized scale, with a focus on
+      scalability, security and auditability. It is based on open source
+      components and assumes a Linux-based hosting infrastructure.
+      Configuration changes are tracked in git, applied atomically across
+      hosts, and verifiable through Puppet's idempotent runs. SUNET uses
+      it to run security-critical infrastructure.
 
     features:
       - Configuration management
