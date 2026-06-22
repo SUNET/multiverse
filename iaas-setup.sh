@@ -5,6 +5,26 @@
 #
 set -x
 
+usage(){
+    echo "usage: iaas-setup.sh [-s]"
+    echo "    -s: skip reboot"
+    exit 1
+}
+
+# Reboot by default
+do_reboot=1
+
+while getopts ":s" o; do
+    case "${o}" in
+        s)
+            do_reboot=0
+            ;;
+        *)
+            usage
+            ;;
+    esac
+done
+
 os=$(lsb_release -si | tr '[:upper:]' '[:lower:]')
 if [ "$os" != "ubuntu" ] && [ "$os" != "debian" ]; then
     echo "unsupported os: '$os'"
@@ -100,4 +120,9 @@ fi
 
 DEBIAN_FRONTEND="noninteractive" apt-get -y update
 DEBIAN_FRONTEND="noninteractive" apt-get -o Dpkg::Options::="--force-confnew" --fix-broken --assume-yes dist-upgrade
-reboot
+
+if [[ "$do_reboot" -eq 1 ]]; then
+    reboot
+else
+    echo "skipping reboot because of '-s' flag"
+fi
