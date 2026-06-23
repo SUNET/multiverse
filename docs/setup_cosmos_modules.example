@@ -43,6 +43,7 @@ codename_to_version: dict = {
     "focal": 20.04,
     "jammy": 22.04,
     "noble": 24.04,
+    "resolut": 26.04,
 }
 
 
@@ -177,14 +178,14 @@ def main():
         # Provided by Debian/dpkg
         # https://github.com/SUNET/multiverse/blob/main/global/pre-tasks.d/030puppethttps://github.com/SUNET/multiverse/blob/main/global/pre-tasks.d/030puppet
 
-        # Bullseye or Jammy, or newer
+        # Bullseye or Noble, or newer
         if (
             dist == "debian"
             and debian_support.version_compare(version, codename_to_version["bullseye"])
             >= 0
         ) or (
             dist == "ubuntu"
-            and debian_support.version_compare(version, codename_to_version["jammy"])
+            and debian_support.version_compare(version, codename_to_version["noble"])
             >= 0
         ):
             del modules["concat"]
