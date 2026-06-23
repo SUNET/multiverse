@@ -5,30 +5,30 @@
 #
 set -x
 
-usage(){
-    echo "usage: iaas-setup.sh [-s]"
-    echo "    -s: skip reboot"
-    exit 1
+usage() {
+	echo "usage: iaas-setup.sh [-s]"
+	echo "    -s: skip reboot"
+	exit 1
 }
 
 # Reboot by default
 do_reboot=1
 
 while getopts ":s" o; do
-    case "${o}" in
-        s)
-            do_reboot=0
-            ;;
-        *)
-            usage
-            ;;
-    esac
+	case "${o}" in
+	s)
+		do_reboot=0
+		;;
+	*)
+		usage
+		;;
+	esac
 done
 
 os=$(lsb_release -si | tr '[:upper:]' '[:lower:]')
 if [ "$os" != "ubuntu" ] && [ "$os" != "debian" ]; then
-    echo "unsupported os: '$os'"
-    exit 1
+	echo "unsupported os: '$os'"
+	exit 1
 fi
 
 # Get rid of ugly perl messages when running from macOS:
@@ -48,38 +48,38 @@ export LC_CTYPE=C.UTF-8
 
 # Remove default user if present
 if id "$os"; then
-    # Make sure there is no systemd process running as the initial cloud image user
-    # after the "enable root" step in prepare-iaas-$os. If there are any
-    # proceses still running as the specified user the "userdel" command
-    # below will fail.
-    #
-    # Depending on how long we have waited between running the "enable root"
-    # script and this one it is possible the process has timed out on its own,
-    # so run this command before doing "set -e" in case there is no process
-    # to match.
-    pkill -u "$os" -xf "/lib/systemd/systemd --user"
+	# Make sure there is no systemd process running as the initial cloud image user
+	# after the "enable root" step in prepare-iaas-$os. If there are any
+	# proceses still running as the specified user the "userdel" command
+	# below will fail.
+	#
+	# Depending on how long we have waited between running the "enable root"
+	# script and this one it is possible the process has timed out on its own,
+	# so run this command before doing "set -e" in case there is no process
+	# to match.
+	pkill -u "$os" -xf "/lib/systemd/systemd --user"
 
-    # Make sure the process has gone away before continuing
-    sleep_seconds=1
-    attempt=1
-    max_attempts=10
-    while pgrep -u "$os" -xf "/lib/systemd/systemd --user"; do
-        if [ $attempt -gt $max_attempts ]; then
-            echo "failed waiting for systemd process to exit, please investigate"
-            exit 1
-        fi
-        echo "systemd process still running as '$os' user, this is attempt $attempt out of $max_attempts, sleeping for $sleep_seconds seconds..."
-        sleep $sleep_seconds
-        attempt=$((attempt + 1))
-    done
+	# Make sure the process has gone away before continuing
+	sleep_seconds=1
+	attempt=1
+	max_attempts=10
+	while pgrep -u "$os" -xf "/lib/systemd/systemd --user"; do
+		if [ $attempt -gt $max_attempts ]; then
+			echo "failed waiting for systemd process to exit, please investigate"
+			exit 1
+		fi
+		echo "systemd process still running as '$os' user, this is attempt $attempt out of $max_attempts, sleeping for $sleep_seconds seconds..."
+		sleep $sleep_seconds
+		attempt=$((attempt + 1))
+	done
 
-    # While the man page for "userdel" recommends using "deluser" we can not
-    # run "deluser" with "--remove-home" without installing more than the
-    # already included `perl-base` package on debian, so stick with the low
-    # level utility.
-    if ! userdel --remove "$os"; then
-        exit 1
-    fi
+	# While the man page for "userdel" recommends using "deluser" we can not
+	# run "deluser" with "--remove-home" without installing more than the
+	# already included `perl-base` package on debian, so stick with the low
+	# level utility.
+	if ! userdel --remove "$os"; then
+		exit 1
+	fi
 fi
 
 # From this point we expect all commands to succeed
@@ -91,38 +91,38 @@ rm /etc/sudoers.d/*
 # bootstrap-cosmos.sh
 locale_gen_file=/etc/locale.gen
 if grep -q '^# en_US.UTF-8 UTF-8$' $locale_gen_file; then
-    sed -i 's/^# \(en_US.UTF-8 UTF-8\)$/\1/' $locale_gen_file
-    locale-gen
+	sed -i 's/^# \(en_US.UTF-8 UTF-8\)$/\1/' $locale_gen_file
+	locale-gen
 fi
 
 if [ "$(lsb_release -is)" == "Debian" ] && [ "$(lsb_release -cs)" == "bullseye" ]; then
-    interfaces_file='/etc/network/interfaces.d/50-cloud-init'
+	interfaces_file='/etc/network/interfaces.d/50-cloud-init'
 
-    if [ -f "${interfaces_file}" ]; then
-        interface_string='iface ens3 inet6 dhcp'
-        accept_ra_string='    accept_ra 2'
+	if [ -f "${interfaces_file}" ]; then
+		interface_string='iface ens3 inet6 dhcp'
+		accept_ra_string='    accept_ra 2'
 
-        if ! grep -qPz "${interface_string}\n${accept_ra_string}" ${interfaces_file} ; then
+		if ! grep -qPz "${interface_string}\n${accept_ra_string}" ${interfaces_file}; then
 
-            # By default net.ipv6.conf.ens3.accept_ra is set to 1 which
-            # makes the kernel throw a way the IPv6 route when
-            # net.ipv6.conf.all.forwarding is set to 1 by our service for
-            # Docker.
-             echo "Configuring interfaces to always accept Router Advertisements even with IP Forwarding enabled"
-            sed -i -r  "s/(${interface_string})/\1\n${accept_ra_string}/" ${interfaces_file}
-        else
-            echo "WARN: Configuration already applied or no match for \"${interface_string}\" in ${interfaces_file}"
-        fi
-    else
-        echo "WARN: ${interfaces_file} not found. File renamed in this image?"
-    fi
+			# By default net.ipv6.conf.ens3.accept_ra is set to 1 which
+			# makes the kernel throw a way the IPv6 route when
+			# net.ipv6.conf.all.forwarding is set to 1 by our service for
+			# Docker.
+			echo "Configuring interfaces to always accept Router Advertisements even with IP Forwarding enabled"
+			sed -i -r "s/(${interface_string})/\1\n${accept_ra_string}/" ${interfaces_file}
+		else
+			echo "WARN: Configuration already applied or no match for \"${interface_string}\" in ${interfaces_file}"
+		fi
+	else
+		echo "WARN: ${interfaces_file} not found. File renamed in this image?"
+	fi
 fi
 
 DEBIAN_FRONTEND="noninteractive" apt-get -y update
 DEBIAN_FRONTEND="noninteractive" apt-get -o Dpkg::Options::="--force-confnew" --fix-broken --assume-yes dist-upgrade
 
 if [[ "$do_reboot" -eq 1 ]]; then
-    reboot
+	reboot
 else
-    echo "skipping reboot because of '-s' flag"
+	echo "skipping reboot because of '-s' flag"
 fi
