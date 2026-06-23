@@ -69,7 +69,7 @@ if [ ! -d "$cmd_fqdn" ]; then
 	git add "$cmd_fqdn"
 	git --no-pager diff --staged
 	echo
-	echo "Touch yubikey to commit diff above"
+	echo -e "\e[1mONLY COMMIT IF YOU APPROVE THE DIFF ABOVE\e[0m"
 	git commit -vm "$cmd_fqdn added" "$cmd_fqdn"
 	./bump-tag
 fi
