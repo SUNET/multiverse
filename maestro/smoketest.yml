@@ -1,0 +1,29 @@
+---
+- name: Smoke test OpenStack credentials
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    # Union of every datacenter referenced by any security group.
+    all_datacenters: "{{ security_groups | dict2items | map(attribute='value.datacenters') | flatten | unique | list }}"
+
+  tasks:
+    - name: Authenticate with all clouds
+      openstack.cloud.auth:
+        cloud: "{{ item }}"
+      register: auth_result
+      loop: "{{ all_datacenters }}"
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Check API access
+      openstack.cloud.security_group_info:
+        cloud: "{{ item }}"
+        name: "default"
+      timeout: 3
+      register: sg_result
+      loop: "{{ all_datacenters }}"
+      loop_control:
+        label: "{{ item }}"
+      ignore_errors: true

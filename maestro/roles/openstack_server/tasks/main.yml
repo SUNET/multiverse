@@ -1,0 +1,122 @@
+---
+- name: Build CMDB from ops repo
+  ansible.builtin.stat:
+    path: "{{ repo_root }}/{{ item.key }}"
+  loop: "{{ servers | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  register: openstack_server_host_dirs
+
+- name: Warn about servers missing from ops repo
+  ansible.builtin.set_fact:
+    openstack_server_skip_warning: "{{ ('skipping ' ~ item ~ ' — no host directory (run ./addhost ' ~ item ~ ')') | warn }}"
+  loop: "{{ openstack_server_host_dirs.results | rejectattr('stat.exists') | map(attribute='item.key') | list }}"
+  loop_control:
+    label: "{{ item }}"
+  changed_when: false
+
+- name: Set repo variables
+  ansible.builtin.set_fact:
+    openstack_server_cosmos_repo: >-
+      {{ lookup('ansible.builtin.file', repo_root ~ '/cosmos.conf')
+      | regex_search('(?m)^repo=\"?([^\"\\n]+)\"?', '\\1')
+      | first }}
+    openstack_server_cosmos_tag: >-
+      {{ lookup('ansible.builtin.file', repo_root ~ '/cosmos.conf')
+      | regex_search('(?m)^tag=\"?([^\"\\n]+)\"?', '\\1')
+      | first }}
+
+- name: Launch and bootstrap an instance (only changed on new servers)
+  vars:
+    bootstrap: /root/cosmos-init/apt/bootstrap-cosmos.sh
+    log: /root/cloud-init-bootstrap-cosmos.log
+    bash: /usr/bin/bash
+  openstack.cloud.server:
+    name: "{{ item.key }}"
+    state: present
+    cloud: "{{ item.value.cloud }}"
+    flavor: "{{ item.value.flavor }}"
+    image: "{{ item.value.image }}"
+    key_name: "{{ item.value.key_name }}"
+    network: "{{ item.value.network }}"
+    security_groups: "{{ item.value.security_groups | map('regex_replace', '^', 'ansible-') | list }}"
+    timeout: 200
+    boot_from_volume: true
+    terminate_volume: true
+    volume_size: "{{ item.value.volume_size }}"
+    userdata: |
+      #cloud-config
+      hostname: {{ item.key }}
+      disable_root: false
+
+      system_info:
+        default_user:
+          name: root
+      packages:
+        - git
+      # Note, that the list has to be proper yaml, so you have to quote
+      # any characters yaml would eat (':' can be problematic)
+      runcmd:
+       # Note: Don't write files to /tmp from cloud-init use /run/somedir instead.
+       # Early boot environments can race systemd-tmpfiles-clean LP: #1707222.
+       - [ mkdir, /root/cosmos-init ]
+       - [ git, clone, "{{ cosmos_repo }}", /root/cosmos-init ]
+       - [ /root/cosmos-init/iaas-setup.sh, "-s" ]
+       - [ {{ bash }}, -xc, "cosmos_deb=$(find /root/cosmos-init/apt/ -maxdepth 1 -name 'cosmos_*.deb' | sort -V | tail -1) && cp -v $cosmos_deb /root"   ]
+       - [ {{ bash }}, -c, "echo running bootstrap-cosmos.sh from cloud-init, log at /root/cloud-init-bootstrap-cosmos.log" ]
+       - [ {{ bash }}, -xc, "cd /root && {{ bootstrap }} {{ item.key }} {{ openstack_server_cosmos_repo }} {{ openstack_server_cosmos_tag }} > {{ log }} 2>&1" ]
+       - [ {{ bash }}, -c, "echo bootstrap-cosmos.sh exited, see /root/cloud-init-bootstrap-cosmos.log for details" ]
+  loop: "{{ openstack_server_host_dirs.results | selectattr('stat.exists') | map(attribute='item') | list }}"
+  register: openstack_server_returnvals
+  loop_control:
+    label: "{{ item.key }}"
+  changed_when: 'openstack_server_returnvals.server.admin_password != None'
+
+- name: Get zones managed by knotctl
+  ansible.builtin.command:
+    cmd: knotctl --json user
+  register: openstack_server_knotctl_user
+  changed_when: false
+
+- name: Collect knotctl-managed zones (without trailing dot)
+  ansible.builtin.set_fact:
+    openstack_server_knotctl_zones: "{{ (openstack_server_knotctl_user.stdout | from_json).zones | map('regex_replace', '\\.$', '') | list }}"
+
+- name: Sync DNS records for changed (created) serversif zone is managed by knotctl
+  ansible.builtin.command:
+    cmd: >-
+      knotctl openstack-sync
+      -n {{ item.item.key }}
+      -c {{ item.item.value.cloud }}
+      -z {{ zone }}
+  loop: "{{ openstack_server_returnvals.results }}"
+  loop_control:
+    label: "{{ item.item.key }}"
+  vars:
+    # knotctl-managed zones that are a label-aligned suffix of the host name
+    matched_zones: >-
+      {{ openstack_server_knotctl_zones
+      | map('regex_replace', '^', '.')
+      | select('in', '.' ~ item.item.key)
+      | map('regex_replace', '^\\.', '')
+      | list }}
+      # most specific (longest) match is the host's zone
+    zone: "{{ (matched_zones | select('match', '^.{' ~ (matched_zones | map('length') | list | max) ~ '}$') | first) if matched_zones | length > 0 else '' }}"
+  when:
+    - item.server.admin_password != None
+    - zone | length > 0
+  register: openstack_server_dns_sync
+  changed_when: openstack_server_dns_sync.stdout | trim != '[]'
+
+- name: Warn when DNS was not synced for a changed (created) server (no knotctl-managed zone)
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: {{ item.item.item.key }} got a new IP but DNS was NOT synced.
+      No knotctl-managed zone matches it. Update DNS manually.
+      {{ item.server.addresses.public[0].addr }} - {{ item.server.addresses.public[1].addr }}
+  loop: "{{ dns_sync.results }}"
+  loop_control:
+    label: "{{ item.item.item.key }}"
+  when:
+    - item.skipped | default(false)
+    - item.item.server.admin_password != None

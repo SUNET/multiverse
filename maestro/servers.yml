@@ -1,0 +1,7 @@
+---
+- name: Launch a compute instance
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - openstack_server

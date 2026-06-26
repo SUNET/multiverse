@@ -1,0 +1,51 @@
+#
+# WARNING - STO3 can't handle description 🙃
+# So if you have STO3 in the mix you can't set descriptions here.
+#
+security_groups:
+  outgoing:
+    datacenters:
+      - example.sunet.se-safespring-dco
+      - example.sunet.se-safespring-sto1
+      - example.sunet.se-safespring-sto3
+    security_group_rules:
+      - ether_type: IPv4
+        direction: egress
+        remote_ip_prefix: 0.0.0.0/0
+      - ether_type: IPv6
+        direction: egress
+        remote_ip_prefix: ::/0
+  ssh-from-jump:
+    datacenters:
+      - example.sunet.se-safespring-dco
+      - example.sunet.se-safespring-sto1
+      - example.sunet.se-safespring-sto3
+    security_group_rules:
+      - ether_type: IPv4
+        direction: ingress
+        remote_ip_prefix: 130.242.125.68/32
+        description: hoppjerka.sunet.se
+        port_range_min: 22
+        port_range_max: 22
+        protocol: tcp
+      - ether_type: IPv6
+        direction: ingress
+        description: hoppjerka.sunet.se
+        remote_ip_prefix: 2001:6b0:8:4::68/128
+        protocol: tcp
+        port_range_min: 22
+        port_range_max: 22
+      - ether_type: IPv4
+        direction: ingress
+        remote_ip_prefix: 130.242.121.73/32
+        description: joppherka.sunet.se
+        port_range_min: 22
+        port_range_max: 22
+        protocol: tcp
+      - ether_type: IPv6
+        direction: ingress
+        description: joppherka.sunet.se
+        remote_ip_prefix: 2001:6b0:7:6::73/128
+        protocol: tcp
+        port_range_min: 22
+        port_range_max: 22

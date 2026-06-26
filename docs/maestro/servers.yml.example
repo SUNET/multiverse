@@ -1,0 +1,11 @@
+servers:
+  my-cool-example-server.sunet.se:
+    cloud: example.sunet.se-safespring-dco
+    flavor: b2.c4r8
+    image: debian-13
+    key_name: my key in Openstack
+    network: public
+    security_groups:
+      - outgoing
+      - ssh-from-jump
+    volume_size: 50

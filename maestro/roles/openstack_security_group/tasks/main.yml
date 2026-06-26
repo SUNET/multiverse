@@ -1,0 +1,12 @@
+---
+- name: Create (or update) a security group with security group rules
+  openstack.cloud.security_group:
+    name: "maestro-{{ security_group_name_prefix }}-{{ item.0.key }}"
+    cloud: "{{ item.1 }}"
+    state: present
+    security_group_rules: "{{ item.0.value.security_group_rules }}"
+  # Each security group declares the datacenters it applies to via its own
+  # `datacenters` list; subelements pairs every group with each of its centers.
+  loop: "{{ security_groups | dict2items | subelements('value.datacenters') }}"
+  loop_control:
+    label: "{{ item.1 }} {{ item.0.key }}"
