@@ -33,7 +33,7 @@
     image: "{{ item.value.image }}"
     key_name: "{{ item.value.key_name }}"
     network: "{{ item.value.network }}"
-    security_groups: "{{ item.value.security_groups | map('regex_replace', '^', 'ansible-') | list }}"
+    security_groups: "{{ item.value.security_groups | map('regex_replace', '^', 'maestro-' ~ security_group_name_prefix ~ '-') | list }}"
     timeout: 200
     boot_from_volume: true
     terminate_volume: true
