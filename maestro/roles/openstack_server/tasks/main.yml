@@ -17,14 +17,8 @@
 
 - name: Set repo variables
   ansible.builtin.set_fact:
-    openstack_server_cosmos_repo: >-
-      {{ lookup('ansible.builtin.file', repo_root ~ '/cosmos.conf')
-      | regex_search('(?m)^repo=\"?([^\"\\n]+)\"?', '\\1')
-      | first }}
-    openstack_server_cosmos_tag: >-
-      {{ lookup('ansible.builtin.file', repo_root ~ '/cosmos.conf')
-      | regex_search('(?m)^tag=\"?([^\"\\n]+)\"?', '\\1')
-      | first }}
+    openstack_server_cosmos_repo: "{{ lookup('ansible.builtin.file', repo_root ~ '/cosmos.conf') | regex_search('repo=\"?([^\"\\s]+)\"?', '\\1') | first }}"
+    openstack_server_cosmos_tag: "{{ lookup('ansible.builtin.file', repo_root ~ '/cosmos.conf') | regex_search('tag=\"?([^\"\\s]+)\"?', '\\1') | first }}"
 
 - name: Launch and bootstrap an instance (only changed on new servers)
   vars:
