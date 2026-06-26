@@ -54,7 +54,7 @@
        # Note: Don't write files to /tmp from cloud-init use /run/somedir instead.
        # Early boot environments can race systemd-tmpfiles-clean LP: #1707222.
        - [ mkdir, /root/cosmos-init ]
-       - [ git, clone, "{{ cosmos_repo }}", /root/cosmos-init ]
+       - [ git, clone, "{{ openstack_server_cosmos_repo }}", /root/cosmos-init ]
        - [ /root/cosmos-init/iaas-setup.sh, "-s" ]
        - [ {{ bash }}, -xc, "cosmos_deb=$(find /root/cosmos-init/apt/ -maxdepth 1 -name 'cosmos_*.deb' | sort -V | tail -1) && cp -v $cosmos_deb /root"   ]
        - [ {{ bash }}, -c, "echo running bootstrap-cosmos.sh from cloud-init, log at /root/cloud-init-bootstrap-cosmos.log" ]
