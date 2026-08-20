@@ -4,6 +4,7 @@
 #
 security_groups:
   outgoing:
+    description: allow all outbound traffic
     datacenters:
       - example.sunet.se-safespring-dco
       - example.sunet.se-safespring-sto1
@@ -16,6 +17,7 @@ security_groups:
         direction: egress
         remote_ip_prefix: ::/0
   ssh-from-jump:
+    description: incomming SSH from SUNET-jumphosts
     datacenters:
       - example.sunet.se-safespring-dco
       - example.sunet.se-safespring-sto1

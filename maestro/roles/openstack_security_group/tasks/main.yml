@@ -5,6 +5,7 @@
     cloud: "{{ item.1 }}"
     state: present
     security_group_rules: "{{ item.0.value.security_group_rules }}"
+    description: "{{ item.0.value.description | default('') }}"
   # Each security group declares the datacenters it applies to via its own
   # `datacenters` list; subelements pairs every group with each of its centers.
   loop: "{{ security_groups | dict2items | subelements('value.datacenters') }}"
