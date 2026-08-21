@@ -12,8 +12,9 @@ It's a set of orchestration tools to easier create hosts in Openstack, bootstrap
 * clouds.yaml which contains all the required sites
 
 # Configuration
-* Copy the examples files in <ops-repo>/docs/maestro/ to maestro/host_vars/localhost/ and make edits to match your repo/service  (remove the exampel suffix from file names)
-* Make sure that your clouds in clouds.yaml are named so Maestro can find them. That is <project>-<service-provider>-<site>. E.g. example.sunet.se-safespring-dco.
+* Copy the examples files in `<ops-repo>/docs/maestro/`` to `<ops-repo>/maestro/host_vars/localhost/` and make edits to match your repo/service (remove the example suffix from file names)
+* Make sure that your clouds (sites) in [clouds.yaml](https://docs.massopen.cloud/en/latest/openstack/clouds.yaml.html) are named so Maestro can find them. That is `<project>-<service-provider>-<site>`. E.g. `example.sunet.se-safespring-dco`.
+
 ```
 clouds:
   example.sunet.se-safespring-dco:
@@ -40,12 +41,15 @@ clouds:
 # Usage
 * Edit the ansible configuration for desired security groups and servers in `maestro/host_vars/localhost/`
 
-* Add the host(s) to the ops-repo (without bootstrap)
+* Add the host(s) to the ops-repo (⚠️ without bootstrap)
 ```
 ./addhost my-aweseome-example.example.com
 ```
 
-* `cd` to the maestro directory in the ops repo
+* Get yourself the maestro directory in the ops repo
+```
+cd maestro
+```
 
 * Run the smoketest playbook connectivity against all configed sites (based on sites for security groups)
 ```
