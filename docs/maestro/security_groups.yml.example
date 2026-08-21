@@ -8,7 +8,7 @@ security_groups:
     datacenters:
       - example.sunet.se-safespring-dco
       - example.sunet.se-safespring-sto1
-      - example.sunet.se-safespring-sto3
+      - example.sunet.se-sunet-orion
     security_group_rules:
       - ether_type: IPv4
         direction: egress
@@ -21,7 +21,7 @@ security_groups:
     datacenters:
       - example.sunet.se-safespring-dco
       - example.sunet.se-safespring-sto1
-      - example.sunet.se-safespring-sto3
+      - example.sunet.se-sunet-orion
     security_group_rules:
       - ether_type: IPv4
         direction: ingress
@@ -51,3 +51,20 @@ security_groups:
         protocol: tcp
         port_range_min: 22
         port_range_max: 22
+  icmp-from-any:
+    datacenters:
+      - example.sunet.se-safespring-dco
+      - example.sunet.se-safespring-sto1
+      - example.sunet.se-sunet-orion
+    description: incomming ICMP from any
+    security_group_rules:
+      - ether_type: IPv4
+        direction: ingress
+        description: inbound-icmpv4
+        remote_ip_prefix: 0.0.0.0/0
+        protocol: icmp
+      - ether_type: IPv6
+        direction: ingress
+        description: inbound-icmpv6
+        remote_ip_prefix: ::/0
+        protocol: ipv6-icmp
