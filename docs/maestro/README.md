@@ -12,8 +12,8 @@ It's a set of orchestration tools to easier create hosts in Openstack, bootstrap
 * clouds.yaml which contains all the required sites
 
 # Configuration
-* Copy the examples files in `\<ops-repo\>/docs/maestro/` to `\<ops-repo\>/maestro/host_vars/localhost/` and make edits to match your repo/service (remove the example suffix from file names)
-* Make sure that your clouds (sites) in [clouds.yaml](https://docs.my-aweseome-exampleen.cloud/en/latest/openstack/clouds.yaml.html) are named so Maestro can find them. That is `\<project\>-\<service-provider\>-\<site\>`. E.g. `example.sunet.se-safespring-dco`.
+* Copy the examples files in `<ops-repo>/docs/maestro/` to `<ops-repo>/maestro/host_vars/localhost/` and make edits to match your repo/service (remove the example suffix from file names)
+* Make sure that your clouds (sites) in [clouds.yaml](https://docs.my-aweseome-exampleen.cloud/en/latest/openstack/clouds.yaml.html) are named so Maestro can find them. That is `<project>-<service-provider>-<site>`. E.g. `example.sunet.se-safespring-dco`.
 
 ```
 clouds:
