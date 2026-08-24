@@ -67,4 +67,5 @@ ansible-playbook servers.yml
 ```
 
 # Integration with knotctl
-TBA
+
+If a user has `knotctl` installed and configured and `knotctl user` returns the zone as the fqdn for the new server `knotctl` will automatically add the newly created host to DNS.
