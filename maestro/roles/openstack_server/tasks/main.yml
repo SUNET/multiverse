@@ -26,6 +26,7 @@
     log: /root/cloud-init-bootstrap-cosmos.log
     bash: /usr/bin/bash
   openstack.cloud.server:
+    auto_ip: false
     name: "{{ item.key }}"
     state: present
     cloud: "{{ item.value.cloud }}"
