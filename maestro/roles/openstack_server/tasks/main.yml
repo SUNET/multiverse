@@ -88,14 +88,16 @@
   loop_control:
     label: "{{ item.item.key }}"
   vars:
-    # knotctl-managed zones that are a label-aligned suffix of the host name
+    # knotctl-managed zones that are a label-aligned suffix of the host name.
+    # Match dots as [.] — a block scalar passes backslashes through unescaped,
+    # so '\\.' would reach the regex as a literal backslash and match nothing.
     matched_zones: >-
       {{ openstack_server_knotctl_zones
       | map('regex_replace', '^', '.')
       | select('in', '.' ~ item.item.key)
-      | map('regex_replace', '^\\.', '')
+      | map('regex_replace', '^[.]', '')
       | list }}
-      # most specific (longest) match is the host's zone
+    # most specific (longest) match is the host's zone
     zone: "{{ (matched_zones | select('match', '^.{' ~ (matched_zones | map('length') | list | max) ~ '}$') | first) if matched_zones | length > 0 else '' }}"
   when:
     - item.server.admin_password != None
@@ -108,8 +110,8 @@
     msg: >-
       WARNING: {{ item.item.item.key }} got a new IP but DNS was NOT synced.
       No knotctl-managed zone matches it. Update DNS manually.
-      {{ item.server.addresses.public[0].addr }} - {{ item.server.addresses.public[1].addr }}
-  loop: "{{ dns_sync.results }}"
+      {{ item.item.server.addresses[item.item.item.value.network] | map(attribute='addr') | join(', ') }}
+  loop: "{{ openstack_server_dns_sync.results }}"
   loop_control:
     label: "{{ item.item.item.key }}"
   when:
