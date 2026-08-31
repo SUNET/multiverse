@@ -1,0 +1,7 @@
+---
+- name: Create security groups
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - openstack_security_group

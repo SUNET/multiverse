@@ -1,0 +1,6 @@
+# We need to know where to check for hosts
+repo_root: "{{ lookup('pipe', 'git rev-parse --show-toplevel') }}"
+
+# Prefix for security group names created in OpenStack (must be unique per project).
+# Datacenters are now declared per security group in security_groups.yml.
+security_group_name_prefix: "<your awesome name - maybe something related to the ops repo>"

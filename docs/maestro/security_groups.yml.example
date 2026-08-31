@@ -1,0 +1,70 @@
+#
+# WARNING - STO3 can't handle description 🙃
+# So if you have STO3 in the mix you can't set descriptions here.
+#
+security_groups:
+  outgoing:
+    description: allow all outbound traffic
+    datacenters:
+      - example.sunet.se-safespring-dco
+      - example.sunet.se-safespring-sto1
+      - example.sunet.se-sunet-orion
+    security_group_rules:
+      - ether_type: IPv4
+        direction: egress
+        remote_ip_prefix: 0.0.0.0/0
+      - ether_type: IPv6
+        direction: egress
+        remote_ip_prefix: ::/0
+  ssh-from-jump:
+    description: incomming SSH from SUNET-jumphosts
+    datacenters:
+      - example.sunet.se-safespring-dco
+      - example.sunet.se-safespring-sto1
+      - example.sunet.se-sunet-orion
+    security_group_rules:
+      - ether_type: IPv4
+        direction: ingress
+        remote_ip_prefix: 130.242.125.68/32
+        description: hoppjerka.sunet.se
+        port_range_min: 22
+        port_range_max: 22
+        protocol: tcp
+      - ether_type: IPv6
+        direction: ingress
+        description: hoppjerka.sunet.se
+        remote_ip_prefix: 2001:6b0:8:4::68/128
+        protocol: tcp
+        port_range_min: 22
+        port_range_max: 22
+      - ether_type: IPv4
+        direction: ingress
+        remote_ip_prefix: 130.242.121.73/32
+        description: joppherka.sunet.se
+        port_range_min: 22
+        port_range_max: 22
+        protocol: tcp
+      - ether_type: IPv6
+        direction: ingress
+        description: joppherka.sunet.se
+        remote_ip_prefix: 2001:6b0:7:6::73/128
+        protocol: tcp
+        port_range_min: 22
+        port_range_max: 22
+  icmp-from-any:
+    datacenters:
+      - example.sunet.se-safespring-dco
+      - example.sunet.se-safespring-sto1
+      - example.sunet.se-sunet-orion
+    description: incomming ICMP from any
+    security_group_rules:
+      - ether_type: IPv4
+        direction: ingress
+        description: inbound-icmpv4
+        remote_ip_prefix: 0.0.0.0/0
+        protocol: icmp
+      - ether_type: IPv6
+        direction: ingress
+        description: inbound-icmpv6
+        remote_ip_prefix: ::/0
+        protocol: ipv6-icmp
