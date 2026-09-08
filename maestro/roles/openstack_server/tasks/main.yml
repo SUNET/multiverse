@@ -44,7 +44,28 @@
   # server needs a rebuild — editing it alone just creates that stray port.
   when: item.value.independent_port | default(true) | bool
 
-- name: Launch and bootstrap an instance (only changed on new servers)
+# Snapshot taken before the launch task, so "did this run create the instance?"
+# is a question about the cloud's own state. openstack.cloud.server reports
+# `changed` for any update it applies to an *existing* instance -- security
+# groups, tags, metadata, floating IPs -- so its change state cannot stand in
+# for creation. One call per cloud, not per host.
+- name: List the instances that already exist in each cloud
+  openstack.cloud.server_info:
+    cloud: "{{ item }}"
+  loop: "{{ openstack_server_hosts | map(attribute='value.cloud') | unique | list }}"
+  register: openstack_server_existing_info
+  changed_when: false
+
+- name: Record which instances existed before this run
+  ansible.builtin.set_fact:
+    openstack_server_pre_existing: >-
+      {{ openstack_server_existing_info.results
+      | map(attribute='servers')
+      | flatten
+      | map(attribute='name')
+      | list }}
+
+- name: Launch and bootstrap an instance
   vars:
     bootstrap: /root/cosmos-init/apt/bootstrap-cosmos.sh
     log: /root/cloud-init-bootstrap-cosmos.log
@@ -94,7 +115,6 @@
   register: openstack_server_returnvals
   loop_control:
     label: "{{ item.key }}"
-  changed_when: 'openstack_server_returnvals.server.admin_password != None'
 
 - name: Get zones managed by knotctl
   ansible.builtin.command:
@@ -129,7 +149,7 @@
     # most specific (longest) match is the host's zone
     zone: "{{ (matched_zones | select('match', '^.{' ~ (matched_zones | map('length') | list | max) ~ '}$') | first) if matched_zones | length > 0 else '' }}"
   when:
-    - item.server.admin_password != None
+    - item.item.key not in openstack_server_pre_existing
     - zone | length > 0
   register: openstack_server_dns_sync
   changed_when: openstack_server_dns_sync.stdout | trim != '[]'
@@ -145,4 +165,4 @@
     label: "{{ item.item.item.key }}"
   when:
     - item.skipped | default(false)
-    - item.item.server.admin_password != None
+    - item.item.item.key not in openstack_server_pre_existing
