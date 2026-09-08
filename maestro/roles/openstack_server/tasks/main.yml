@@ -94,7 +94,6 @@
   register: openstack_server_returnvals
   loop_control:
     label: "{{ item.key }}"
-  changed_when: 'openstack_server_returnvals.server.admin_password != None'
 
 - name: Get zones managed by knotctl
   ansible.builtin.command:
@@ -129,7 +128,7 @@
     # most specific (longest) match is the host's zone
     zone: "{{ (matched_zones | select('match', '^.{' ~ (matched_zones | map('length') | list | max) ~ '}$') | first) if matched_zones | length > 0 else '' }}"
   when:
-    - item.server.admin_password != None
+    - item.changed
     - zone | length > 0
   register: openstack_server_dns_sync
   changed_when: openstack_server_dns_sync.stdout | trim != '[]'
@@ -145,4 +144,4 @@
     label: "{{ item.item.item.key }}"
   when:
     - item.skipped | default(false)
-    - item.item.server.admin_password != None
+    - item.item.changed
