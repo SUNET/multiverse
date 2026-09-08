@@ -177,7 +177,15 @@
     - item.item.key not in openstack_server_pre_existing
     - zone | length > 0
   register: openstack_server_dns_sync
-  changed_when: openstack_server_dns_sync.stdout | trim != '[]'
+  # A sync error leaves a reachable instance without a DNS record. That is
+  # worth a loud warning, not a failed run: the VM is already up, and failing
+  # here makes an infrastructure problem indistinguishable from a DNS one.
+  failed_when: false
+  # Still report changed when records were actually written, so the recap
+  # keeps telling "synced" apart from "nothing to do".
+  changed_when: >-
+    (openstack_server_dns_sync.rc | default(-1)) == 0
+    and (openstack_server_dns_sync.stdout | default('') | trim) != '[]'
 
 - name: Warn when DNS was not synced for a changed (created) server (no knotctl-managed zone)
   ansible.builtin.debug:
@@ -191,3 +199,21 @@
   when:
     - item.skipped | default(false)
     - item.item.item.key not in openstack_server_pre_existing
+
+- name: Warn about DNS sync failures
+  vars:
+    message: |-
+      DNS sync failed for {{ item.item.item.key }} (rc={{ item.rc | default('n/a') }}). Update DNS manually.
+
+      {{ item.stderr | default(item.msg | default('(no error output)')) }}
+  ansible.builtin.set_fact:
+    openstack_server_dns_warning: "{{ message | warn }}"
+  loop: "{{ openstack_server_dns_sync.results }}"
+  loop_control:
+    label: "{{ item.item.item.key }}"
+  # `rc` is absent on a module failure, so gate on "ran and did not exit 0"
+  # rather than on `rc != 0`, which would drop those cases silently.
+  when:
+    - not (item.skipped | default(false))
+    - (item.rc | default(-1)) != 0
+  changed_when: false
