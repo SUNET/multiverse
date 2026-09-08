@@ -106,7 +106,7 @@
   ansible.builtin.set_fact:
     openstack_server_knotctl_zones: "{{ (openstack_server_knotctl_user.stdout | from_json).zones | map('regex_replace', '\\.$', '') | list }}"
 
-- name: Sync DNS records for changed (created) serversif zone is managed by knotctl
+- name: Sync DNS records for changed (created) servers if zone is managed by knotctl
   ansible.builtin.command:
     cmd: >-
       knotctl openstack-sync
