@@ -16,7 +16,7 @@ security_groups:
       - ether_type: IPv6
         direction: egress
         remote_ip_prefix: ::/0
-  ssh-from-jump:
+  ssh-from-sunet-jump:
     description: incomming SSH from SUNET-jumphosts
     datacenters:
       - example.sunet.se-safespring-dco
