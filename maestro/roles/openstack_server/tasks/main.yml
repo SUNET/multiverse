@@ -121,10 +121,35 @@
     cmd: knotctl --json user
   register: openstack_server_knotctl_user
   changed_when: false
+  # DNS is a post-provisioning step. A missing or misconfigured knotctl must
+  # not fail a run whose instances came up fine; warn below instead. README
+  # lists knotctl as optional, so "not installed" is a supported state.
+  failed_when: false
+
+- name: Warn when knotctl is unavailable
+  vars:
+    # Real newlines come from this literal block scalar. '\n' inside a Jinja
+    # string literal is not an escape here -- it reaches the operator as a
+    # literal backslash-n, the same trap as the regex note further down.
+    message: |-
+      knotctl is unavailable (rc={{ openstack_server_knotctl_user.rc | default('n/a') }}), so DNS records
+      were NOT created for any new instance. Update DNS manually.
+
+      {{ openstack_server_knotctl_user.stderr | default(openstack_server_knotctl_user.msg | default('(no error output)')) }}
+  ansible.builtin.set_fact:
+    openstack_server_knotctl_warning: "{{ message | warn }}"
+  when: (openstack_server_knotctl_user.rc | default(-1)) != 0
+  changed_when: false
+
+- name: Default to no knotctl-managed zones
+  ansible.builtin.set_fact:
+    openstack_server_knotctl_zones: []
 
 - name: Collect knotctl-managed zones (without trailing dot)
   ansible.builtin.set_fact:
     openstack_server_knotctl_zones: "{{ (openstack_server_knotctl_user.stdout | from_json).zones | map('regex_replace', '\\.$', '') | list }}"
+  when: (openstack_server_knotctl_user.rc | default(-1)) == 0
+
 
 - name: Sync DNS records for changed (created) servers if zone is managed by knotctl
   ansible.builtin.command:
