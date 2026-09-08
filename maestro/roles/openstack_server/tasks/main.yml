@@ -150,17 +150,12 @@
     openstack_server_knotctl_zones: "{{ (openstack_server_knotctl_user.stdout | from_json).zones | map('regex_replace', '\\.$', '') | list }}"
   when: (openstack_server_knotctl_user.rc | default(-1)) == 0
 
-
-- name: Sync DNS records for created servers if zone is managed by knotctl
-  ansible.builtin.command:
-    cmd: >-
-      knotctl openstack-sync
-      -n {{ item.item.key }}
-      -c {{ item.item.value.cloud }}
-      -z {{ zone }}
-  loop: "{{ openstack_server_returnvals.results }}"
+- name: Resolve the knotctl-managed zone of each server
+  ansible.builtin.set_fact:
+    openstack_server_zone_map: "{{ openstack_server_zone_map | default({}) | combine({item.key: zone}) }}"
+  loop: "{{ openstack_server_hosts }}"
   loop_control:
-    label: "{{ item.item.key }}"
+    label: "{{ item.key }}"
   vars:
     # knotctl-managed zones that are a label-aligned suffix of the host name.
     # Match dots as [.] — a block scalar passes backslashes through unescaped,
@@ -168,24 +163,62 @@
     matched_zones: >-
       {{ openstack_server_knotctl_zones
       | map('regex_replace', '^', '.')
-      | select('in', '.' ~ item.item.key)
+      | select('in', '.' ~ item.key)
       | map('regex_replace', '^[.]', '')
       | list }}
     # most specific (longest) match is the host's zone
     zone: "{{ (matched_zones | select('match', '^.{' ~ (matched_zones | map('length') | list | max) ~ '}$') | first) if matched_zones | length > 0 else '' }}"
+  changed_when: false
+
+# knotctl's output cannot say whether the sync wrote anything, so the records
+# are read before and after it and compared. Same loop and same `when` as the
+# sync below, so the three result lists line up index for index.
+- name: Read the DNS records of each created server before syncing
+  ansible.builtin.command:
+    cmd: >-
+      knotctl --json list
+      -n {{ item.item.key }}
+      -z {{ openstack_server_zone_map[item.item.key] }}
+  loop: "{{ openstack_server_returnvals.results }}"
+  loop_control:
+    label: "{{ item.item.key }}"
   when:
     - item.item.key not in openstack_server_pre_existing
-    - zone | length > 0
+    - openstack_server_zone_map[item.item.key] | length > 0
+  register: openstack_server_dns_before
+  changed_when: false
+  failed_when: false
+
+- name: Sync DNS records for created servers if zone is managed by knotctl
+  ansible.builtin.command:
+    cmd: >-
+      knotctl openstack-sync
+      -n {{ item.item.key }}
+      -c {{ item.item.value.cloud }}
+      -z {{ openstack_server_zone_map[item.item.key] }}
+  loop: "{{ openstack_server_returnvals.results }}"
+  loop_control:
+    label: "{{ item.item.key }}"
+  when:
+    - item.item.key not in openstack_server_pre_existing
+    - openstack_server_zone_map[item.item.key] | length > 0
   register: openstack_server_dns_sync
   # A sync error leaves a reachable instance without a DNS record. That is
   # worth a loud warning, not a failed run: the VM is already up, and failing
   # here makes an infrastructure problem indistinguishable from a DNS one.
   failed_when: false
-  # Still report changed when records were actually written, so the recap
-  # keeps telling "synced" apart from "nothing to do".
-  changed_when: >-
-    (openstack_server_dns_sync.rc | default(-1)) == 0
-    and (openstack_server_dns_sync.stdout | default('') | trim) != '[]'
+  # No change state from this task, because knotctl's output cannot carry one.
+  # openstack-sync prints via add()/update()/delete(), one line per record --
+  # but add() prints only when the API's PUT reply contains the record it just
+  # wrote, and the knot REST API answers a write with the zone's new SOA. So a
+  # successful create prints nothing, exactly like a no-op: both are empty
+  # stdout with rc 0. "Report the DNS records" below gets the change state from
+  # the records themselves instead.
+  #
+  # stdout is still worth reading for failures, which is the one thing knotctl
+  # does say clearly: an error payload (it exits 0 for a connection or decode
+  # failure) or a non-zero rc. See "Warn about DNS sync failures".
+  changed_when: false
 
 - name: Warn when DNS was not synced for a created server (no knotctl-managed zone)
   vars:
@@ -210,15 +243,80 @@
     message: |-
       DNS sync failed for {{ item.item.item.key }} (rc={{ item.rc | default('n/a') }}). Update DNS manually.
 
-      {{ item.stderr | default(item.msg | default('(no error output)')) }}
+      stdout: {{ item.stdout | default('') | trim | default('(none)', true) }}
+      stderr: {{ item.stderr | default('') | trim | default('(none)', true) }}
   ansible.builtin.set_fact:
     openstack_server_dns_warning: "{{ message | warn }}"
   loop: "{{ openstack_server_dns_sync.results }}"
   loop_control:
     label: "{{ item.item.item.key }}"
-  # `rc` is absent on a module failure, so gate on "ran and did not exit 0"
-  # rather than on `rc != 0`, which would drop those cases silently.
+  # Two failure shapes, neither of which rc alone catches. knotctl exits 0 on
+  # a connection or decode error and puts the error payload on stdout, and it
+  # exits non-zero for "Server not found" with the message on stdout too --
+  # so both streams are reported and stdout is part of the test.
   when:
     - not (item.skipped | default(false))
-    - (item.rc | default(-1)) != 0
+    - (item.rc | default(-1)) != 0 or 'Error:' in (item.stdout | default(''))
+  changed_when: false
+
+- name: Read the DNS records of each created server after syncing
+  ansible.builtin.command:
+    cmd: >-
+      knotctl --json list
+      -n {{ item.item.key }}
+      -z {{ openstack_server_zone_map[item.item.key] }}
+  loop: "{{ openstack_server_returnvals.results }}"
+  loop_control:
+    label: "{{ item.item.key }}"
+  when:
+    - item.item.key not in openstack_server_pre_existing
+    - openstack_server_zone_map[item.item.key] | length > 0
+  register: openstack_server_dns_after
+  changed_when: false
+  failed_when: false
+
+- name: Report the DNS records of each created server
+  vars:
+    # A name with no records answers {"Code": 404, ...} rather than an array,
+    # so stdout is only parsed when it actually starts with '['.
+    before_out: "{{ (openstack_server_dns_before.results[idx].stdout | default('') | trim) or '[]' }}"
+    after_out: "{{ (item.stdout | default('') | trim) or '[]' }}"
+    # Address records only: the zone's SOA serial changes on every write and
+    # would otherwise read as a change to this host.
+    before: "{{ ((before_out | from_json) if (before_out | first) == '[' else []) | selectattr('rtype', 'in', ['A', 'AAAA']) | map(attribute='data') | map('lower') | sort | list }}"
+    after: "{{ ((after_out | from_json) if (after_out | first) == '[' else []) | selectattr('rtype', 'in', ['A', 'AAAA']) | map(attribute='data') | map('lower') | sort | list }}"
+    added: "{{ after | reject('in', before) | list }}"
+  ansible.builtin.debug:
+    msg: >-
+      {{ item.item.item.key }}:
+      {{ ('DNS now ' ~ (after | join(', ')) ~ ((' (added ' ~ (added | join(', ')) ~ ')') if added | length > 0 else ''))
+      if after | length > 0 else 'still has no DNS records' }}
+  loop: "{{ openstack_server_dns_after.results }}"
+  loop_control:
+    index_var: idx
+    label: "{{ item.item.item.key }}"
+  when: not (item.skipped | default(false))
+  # The one honest change signal available: the records are different now than
+  # they were before the sync ran.
+  changed_when: before != after
+
+- name: Warn when DNS does not match the addresses the instance has
+  vars:
+    after_out: "{{ (item.stdout | default('') | trim) or '[]' }}"
+    published: "{{ ((after_out | from_json) if (after_out | first) == '[' else []) | selectattr('rtype', 'in', ['A', 'AAAA']) | map(attribute='data') | map('lower') | list }}"
+    expected: "{{ item.item.server.addresses[item.item.item.value.network] | default([]) | map(attribute='addr') | map('lower') | list }}"
+    missing: "{{ expected | reject('in', published) | list }}"
+    message: |-
+      {{ item.item.item.key }} has addresses with no DNS record after the sync. Update DNS manually.
+
+      missing:   {{ missing | join(', ') }}
+      published: {{ published | join(', ') | default('(none)', true) }}
+  ansible.builtin.set_fact:
+    openstack_server_dns_mismatch_warning: "{{ message | warn }}"
+  loop: "{{ openstack_server_dns_after.results }}"
+  loop_control:
+    label: "{{ item.item.item.key }}"
+  when:
+    - not (item.skipped | default(false))
+    - missing | length > 0
   changed_when: false
