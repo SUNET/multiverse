@@ -131,7 +131,6 @@
     - item.changed
     - zone | length > 0
   register: openstack_server_dns_sync
-  changed_when: openstack_server_dns_sync.stdout | trim != '[]'
   failed_when: false
   changed_when: false
 
