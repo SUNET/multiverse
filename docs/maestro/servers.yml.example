@@ -7,5 +7,5 @@ servers:
     network: public
     security_groups:
       - outgoing
-      - ssh-from-jump
+      - ssh-from-sunet-jump
     volume_size: 50
