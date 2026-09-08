@@ -132,6 +132,8 @@
     - zone | length > 0
   register: openstack_server_dns_sync
   changed_when: openstack_server_dns_sync.stdout | trim != '[]'
+  failed_when: false
+  changed_when: false
 
 - name: Warn when DNS was not synced for a changed (created) server (no knotctl-managed zone)
   ansible.builtin.debug:
@@ -145,3 +147,21 @@
   when:
     - item.skipped | default(false)
     - item.item.changed
+
+- name: Warn about DNS sync failures
+  ansible.builtin.set_fact:
+    openstack_server_dns_warning: >-
+      {{
+        (
+          'DNS sync failed for ' ~ item.item.item.key ~
+          ' (rc=' ~ (item.rc | string) ~ ')\n\n' ~
+          item.stderr
+        ) | warn
+      }}
+  loop: "{{ openstack_server_dns_sync.results }}"
+  loop_control:
+    label: "{{ item.item.item.key }}"
+  when:
+    - item.rc is defined
+    - item.rc != 0
+  changed_when: false
