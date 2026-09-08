@@ -151,7 +151,7 @@
   when: (openstack_server_knotctl_user.rc | default(-1)) == 0
 
 
-- name: Sync DNS records for changed (created) servers if zone is managed by knotctl
+- name: Sync DNS records for created servers if zone is managed by knotctl
   ansible.builtin.command:
     cmd: >-
       knotctl openstack-sync
@@ -187,18 +187,23 @@
     (openstack_server_dns_sync.rc | default(-1)) == 0
     and (openstack_server_dns_sync.stdout | default('') | trim) != '[]'
 
-- name: Warn when DNS was not synced for a changed (created) server (no knotctl-managed zone)
-  ansible.builtin.debug:
-    msg: >-
-      WARNING: {{ item.item.item.key }} got a new IP but DNS was NOT synced.
-      No knotctl-managed zone matches it. Update DNS manually.
-      {{ item.item.server.addresses[item.item.item.value.network] | map(attribute='addr') | join(', ') }}
+- name: Warn when DNS was not synced for a created server (no knotctl-managed zone)
+  vars:
+    addresses: "{{ item.item.server.addresses[item.item.item.value.network] | default([]) | map(attribute='addr') | join(', ') }}"
+    message: |-
+      {{ item.item.item.key }} got a new IP but DNS was NOT synced: no knotctl-managed
+      zone matches it. Update DNS manually.
+
+      {{ addresses }}
+  ansible.builtin.set_fact:
+    openstack_server_dns_zone_warning: "{{ message | warn }}"
   loop: "{{ openstack_server_dns_sync.results }}"
   loop_control:
     label: "{{ item.item.item.key }}"
   when:
     - item.skipped | default(false)
     - item.item.item.key not in openstack_server_pre_existing
+  changed_when: false
 
 - name: Warn about DNS sync failures
   vars:
