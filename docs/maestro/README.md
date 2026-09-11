@@ -13,7 +13,7 @@ It's a set of orchestration tools to easier create hosts in Openstack, bootstrap
 
 # Configuration
 * Copy the examples files in `<ops-repo>/docs/maestro/` to `<ops-repo>/maestro/host_vars/localhost/` and make edits to match your repo/service (remove the example suffix from file names)
-* Make sure that your clouds (sites) in [clouds.yaml](https://docs.my-aweseome-exampleen.cloud/en/latest/openstack/clouds.yaml.html) are named so Maestro can find them. That is `<project>-<service-provider>-<site>`. E.g. `example.sunet.se-safespring-dco`.
+* Make sure that your clouds (sites) in [clouds.yaml](https://docs.my-aweseome-exampleen.cloud/en/latest/openstack/clouds.yaml.html) are named so Maestro can find them. That is `<project>-<service-provider>-<site>`. E.g. `example.sunet.se-safespring-dco`. The cloud names are part of the ops repo (`servers.yml` and `security_groups.yml` reference them), so every operator running Maestro from the same repo needs the same names in their own `clouds.yaml`. So following the same naming convention is strongly recommended.
 
 ```
 clouds:
@@ -69,3 +69,5 @@ ansible-playbook servers.yml
 # Integration with knotctl
 
 If a user has `knotctl` installed and configured and `knotctl user` returns the zone as the fqdn for the new server `knotctl` will automatically add the newly created host to DNS. If the host already exist in DNS the fqdn will not be updated. This behavior might change in the future if knotctl get the sync improved.
+
+For every newly created host it reads the records back and compares them with the addresses the instance actually has, so the run reports what is published (`DNS now 130.242.0.1, 2001:6b0:... (added ...)`) and warns if an address is still missing. A run that ends with no `[WARNING]` lines has its DNS in place; any warning names the host to fix by hand.
