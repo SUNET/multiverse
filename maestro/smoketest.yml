@@ -16,8 +16,25 @@
         | unique
         | list
       }}
+    # Set the minimum recommended Ansible version.
+    recommended_ansible_version: "2.21"
 
   tasks:
+
+    # Warn, but do not fail, when Ansible is older than recommended.
+    - name: Check recommended Ansible version
+      set_fact:
+        maestro_version_warning: >-
+          {{
+            (
+              'Running Ansible ' ~ ansible_version.full ~
+              '. Recommended version is ' ~
+              recommended_ansible_version ~ ' or newer.'
+            )
+            | warn
+          }}
+      when:
+        - ansible_version.full is version(recommended_ansible_version, '<')
 
     # Verify that security_groups were loaded from host_vars
     # and contain at least one security group definition.
