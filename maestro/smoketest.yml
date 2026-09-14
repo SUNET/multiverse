@@ -5,18 +5,31 @@
   gather_facts: false
 
   vars:
-    # Union of every datacenter referenced by any security group.
-    all_datacenters: "{{ security_groups | dict2items | map(attribute='value.datacenters') | flatten | unique | list }}"
+    # Build a unique list of all datacenters referenced by
+    # the security group definitions.
+    all_datacenters: >-
+      {{
+        security_groups
+        | dict2items
+        | map(attribute='value.datacenters')
+        | flatten
+        | unique
+        | list
+      }}
 
   tasks:
+
+    # Verify that authentication succeeds against every
+    # referenced OpenStack cloud.
     - name: Authenticate with all clouds
       openstack.cloud.auth:
         cloud: "{{ item }}"
-      register: auth_result
       loop: "{{ all_datacenters }}"
       loop_control:
         label: "{{ item }}"
 
+    # Verify that an authenticated session can make
+    # a real API call to OpenStack.
     - name: Check API access
       openstack.cloud.security_group_info:
         cloud: "{{ item }}"
