@@ -114,3 +114,12 @@
       loop_control:
         label: "{{ item }}"
       ignore_errors: true
+
+    # Fail if any API call failed.
+    - name: Validate OpenStack API access
+      fail:
+        msg: "API access failed for cloud '{{ item.item }}'"
+      when: item.failed | default(false)
+      loop: "{{ sg_result.results }}"
+      loop_control:
+        label: "{{ item.item }}"
