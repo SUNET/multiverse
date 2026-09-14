@@ -1,5 +1,5 @@
 ---
-- name: Smoke test OpenStack credentials
+- name: Smoke test OpenStack credentials and configuration
   hosts: localhost
   connection: local
   gather_facts: false
@@ -18,6 +18,80 @@
       }}
 
   tasks:
+
+    # Verify that security_groups were loaded from host_vars
+    # and contain at least one security group definition.
+    - name: Validate security_groups variable
+      assert:
+        quiet: true
+        that:
+          - security_groups is defined
+          - security_groups is mapping
+          - security_groups | length > 0
+
+    # Verify that servers were loaded from host_vars
+    # and contain at least one server definition.
+    - name: Validate servers variable
+      assert:
+        quiet: true
+        that:
+          - servers is defined
+          - servers is mapping
+          - servers | length > 0
+
+    # Collect all security groups referenced by servers.
+    - name: Build referenced security group list
+      set_fact:
+        referenced_security_groups: >-
+          {{
+            servers.values()
+            | map(attribute='security_groups')
+            | flatten
+            | unique
+            | list
+          }}
+
+    # Find security groups referenced by servers that do
+    # not exist in the security_groups configuration.
+    - name: Find invalid security group references
+      set_fact:
+        invalid_security_groups: >-
+          {{
+            referenced_security_groups
+            | difference(security_groups.keys() | list)
+          }}
+      changed_when: false
+
+    # Fail if any server references an undefined
+    # security group.
+    - name: Validate server security group references
+      fail:
+        msg: >-
+          Undefined security groups referenced:
+          {{ invalid_security_groups | join(', ') }}
+      when: invalid_security_groups | length > 0
+
+    # Find servers that reference clouds that are not
+    # present in the discovered datacenter list.
+    - name: Find invalid cloud references
+      set_fact:
+        invalid_clouds: >-
+          {{
+            servers
+            | dict2items
+            | rejectattr('value.cloud', 'in', all_datacenters)
+            | map(attribute='key')
+            | list
+          }}
+      changed_when: false
+
+    # Fail if any server references an unknown cloud.
+    - name: Validate server cloud references
+      fail:
+        msg: >-
+          Servers referencing unknown clouds:
+          {{ invalid_clouds | join(', ') }}
+      when: invalid_clouds | length > 0
 
     # Verify that authentication succeeds against every
     # referenced OpenStack cloud.
