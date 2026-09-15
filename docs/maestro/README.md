@@ -1,3 +1,8 @@
+
+<div align="left">
+  <img src="images/maestro_logo.png" width="50%">
+</div>
+
 # What is Maestro?
 
 It's a set of orchestration tools to easier create hosts in Openstack, bootstrap cosmos and register in DNS (via knotctl). It also handles security groups.
