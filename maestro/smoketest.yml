@@ -1,22 +1,104 @@
 ---
-- name: Smoke test OpenStack credentials
+- name: Smoke test OpenStack credentials and configuration
   hosts: localhost
   connection: local
   gather_facts: false
 
   vars:
-    # Union of every datacenter referenced by any security group.
-    all_datacenters: "{{ security_groups | dict2items | map(attribute='value.datacenters') | flatten | unique | list }}"
+    # Build a unique list of all datacenters referenced by
+    # the security group definitions.
+    all_datacenters: >-
+      {{
+        security_groups
+        | dict2items
+        | map(attribute='value.datacenters')
+        | flatten
+        | unique
+        | list
+      }}
+    # Set the minimum recommended Ansible version.
+    recommended_ansible_version: "2.21"
 
   tasks:
+
+    # Warn, but do not fail, when Ansible is older than recommended.
+    - name: Check recommended Ansible version
+      set_fact:
+        maestro_version_warning: >-
+          {{
+            (
+              'Running Ansible ' ~ ansible_version.full ~
+              '. Recommended version is ' ~
+              recommended_ansible_version ~ ' or newer.'
+            )
+            | warn
+          }}
+      when:
+        - ansible_version.full is version(recommended_ansible_version, '<')
+
+    # Verify that security_groups were loaded from host_vars
+    # and contain at least one security group definition.
+    - name: Validate security_groups variable
+      assert:
+        quiet: true
+        that:
+          - security_groups is defined
+          - security_groups is mapping
+          - security_groups | length > 0
+
+    # Verify that servers were loaded from host_vars
+    # and contain at least one server definition.
+    - name: Validate servers variable
+      assert:
+        quiet: true
+        that:
+          - servers is defined
+          - servers is mapping
+          - servers | length > 0
+
+    # Collect all security groups referenced by servers.
+    - name: Build referenced security group list
+      set_fact:
+        referenced_security_groups: >-
+          {{
+            servers.values()
+            | map(attribute='security_groups')
+            | flatten
+            | unique
+            | list
+          }}
+
+    # Find security groups referenced by servers that do
+    # not exist in the security_groups configuration.
+    - name: Find invalid security group references
+      set_fact:
+        invalid_security_groups: >-
+          {{
+            referenced_security_groups
+            | difference(security_groups.keys() | list)
+          }}
+      changed_when: false
+
+    # Fail if any server references an undefined
+    # security group.
+    - name: Validate server security group references
+      fail:
+        msg: >-
+          Undefined security groups referenced:
+          {{ invalid_security_groups | join(', ') }}
+      when: invalid_security_groups | length > 0
+
+    # Verify that authentication succeeds against every
+    # referenced OpenStack cloud.
     - name: Authenticate with all clouds
       openstack.cloud.auth:
         cloud: "{{ item }}"
-      register: auth_result
       loop: "{{ all_datacenters }}"
       loop_control:
         label: "{{ item }}"
 
+    # Verify that an authenticated session can make
+    # a real API call to OpenStack.
     - name: Check API access
       openstack.cloud.security_group_info:
         cloud: "{{ item }}"
@@ -27,3 +109,12 @@
       loop_control:
         label: "{{ item }}"
       ignore_errors: true
+
+    # Fail if any API call failed.
+    - name: Validate OpenStack API access
+      fail:
+        msg: "API access failed for cloud '{{ item.item }}'"
+      when: item.failed | default(false)
+      loop: "{{ sg_result.results }}"
+      loop_control:
+        label: "{{ item.item }}"

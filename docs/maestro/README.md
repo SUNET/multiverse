@@ -1,3 +1,8 @@
+
+<div align="left">
+  <img src="images/maestro_logo.png" width="50%">
+</div>
+
 # What is Maestro?
 
 It's a set of orchestration tools to easier create hosts in Openstack, bootstrap cosmos and register in DNS (via knotctl). It also handles security groups.
@@ -51,7 +56,7 @@ clouds:
 cd maestro
 ```
 
-* Run the smoketest playbook connectivity against all configured sites (based on sites for security groups)
+* Run the smoketest playbook to test: api/cloud connectivity, security group references etc.
 ```
 ansible-playbook smoketest.yml
 ```
