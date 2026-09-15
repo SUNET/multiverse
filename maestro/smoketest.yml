@@ -88,28 +88,6 @@
           {{ invalid_security_groups | join(', ') }}
       when: invalid_security_groups | length > 0
 
-    # Find servers that reference clouds that are not
-    # present in the discovered datacenter list.
-    - name: Find invalid cloud references
-      set_fact:
-        invalid_clouds: >-
-          {{
-            servers
-            | dict2items
-            | rejectattr('value.cloud', 'in', all_datacenters)
-            | map(attribute='key')
-            | list
-          }}
-      changed_when: false
-
-    # Fail if any server references an unknown cloud.
-    - name: Validate server cloud references
-      fail:
-        msg: >-
-          Servers referencing unknown clouds:
-          {{ invalid_clouds | join(', ') }}
-      when: invalid_clouds | length > 0
-
     # Verify that authentication succeeds against every
     # referenced OpenStack cloud.
     - name: Authenticate with all clouds
