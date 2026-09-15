@@ -56,7 +56,7 @@ clouds:
 cd maestro
 ```
 
-* Run the smoketest playbook connectivity against all configured sites (based on sites for security groups)
+* Run the smoketest playbook to test: api/cloud connectivity, security group references etc.
 ```
 ansible-playbook smoketest.yml
 ```
