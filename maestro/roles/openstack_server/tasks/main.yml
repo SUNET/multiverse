@@ -72,6 +72,10 @@
     bash: /usr/bin/bash
     security_group_names: "{{ item.value.security_groups | map('regex_replace', '^', 'maestro-' ~ security_group_name_prefix ~ '-') | list }}"
     independent_port: "{{ item.value.independent_port | default(true) | bool }}"
+    # Optional: not every server declares overlays. .get() returns None for a
+    # missing key instead of raising, and `or []` also covers an empty value.
+    overlays: "{{ (item.value.get('additional_overlays') or []) | join(',') }}"
+    overlay_arg: "{{ (' ' ~ overlays) if overlays else '' }}"
   openstack.cloud.server:
     auto_ip: false
     name: "{{ item.key }}"
@@ -109,7 +113,7 @@
        - [ /root/cosmos-init/iaas-setup.sh, "-s" ]
        - [ {{ bash }}, -xc, "cosmos_deb=$(find /root/cosmos-init/apt/ -maxdepth 1 -name 'cosmos_*.deb' | sort -V | tail -1) && cp -v $cosmos_deb /root"   ]
        - [ {{ bash }}, -c, "echo running bootstrap-cosmos.sh from cloud-init, log at /root/cloud-init-bootstrap-cosmos.log" ]
-       - [ {{ bash }}, -xc, "cd /root && {{ bootstrap }} {{ item.key }} {{ openstack_server_cosmos_repo }} {{ openstack_server_cosmos_tag }} > {{ log }} 2>&1" ]
+       - [ {{ bash }}, -xc, "cd /root && {{ bootstrap }} {{ item.key }} {{ openstack_server_cosmos_repo }} {{ openstack_server_cosmos_tag }}{{ overlay_arg }} > {{ log }} 2>&1" ]
        - [ {{ bash }}, -c, "echo bootstrap-cosmos.sh exited, see /root/cloud-init-bootstrap-cosmos.log for details" ]
   loop: "{{ openstack_server_hosts }}"
   register: openstack_server_returnvals

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -ex
 
 cmd_hostname="$1"
 if [[ -z "$cmd_hostname" ]]; then
@@ -20,7 +20,8 @@ if [[ -z "$cmd_tags" ]]; then
 	exit 3
 fi
 
-set -x
+# Optional overlays to be configured in /etc/cosmos/cosmos.conf. String split by ','.
+IFS=',' read -r -a cmd_overlays <<<"$4"
 
 # cloud-init runs with LANG='US-ASCII' which is likely to fail because of non-US-ASCII chars in the manifest
 export LANG='en_US.UTF-8'
@@ -82,14 +83,23 @@ echo "${host_ip} ${cmd_hostname} ${short}" >>/etc/hosts
 
 # Set up cosmos models. They are in the order of most significant first, so we want
 # <host> <group (if it exists)> <global>
+# legacy_common is to be backwards compatible to before/without maestro
 _host_type=$(echo "$cmd_hostname" | cut -d - -f 1)
+legacy_common="${_host_type}-common"
+if [[ ${#cmd_overlays[@]} -eq 0 ]]; then
+	cmd_overlays=("$legacy_common")
+fi
 # $COSMOS_REPO should be handles as $PATH without expansion at this stage
 # shellcheck disable=SC2016
 models_array=('\$COSMOS_REPO/'"$cmd_hostname/")
-if [[ -d "/var/cache/cosmos/repo/${_host_type}-common" ]]; then
-	# shellcheck disable=SC2016
-	models_array+=('\$COSMOS_REPO/'"${_host_type}-common/")
-fi
+
+for overlay in "${cmd_overlays[@]}"; do
+	if [[ -d "/var/cache/cosmos/repo/${overlay}" ]]; then
+		# shellcheck disable=SC2016
+		models_array+=('\$COSMOS_REPO/'"${overlay}/")
+	fi
+done
+
 # shellcheck disable=SC2016
 models_array+=('\$COSMOS_REPO/global/')
 models=$(
