@@ -1,5 +1,5 @@
 servers:
-  my-cool-example-server.sunet.se:
+  my-cool-example-server1.sunet.se:
     cloud: example.sunet.se-sunet-orion
     flavor: b2.c4r8
     image: debian-13
@@ -9,3 +9,15 @@ servers:
       - outgoing
       - ssh-from-sunet-jump
     volume_size: 50
+  my-cool-example-server2.sunet.se:
+    cloud: example.sunet.se-sunet-orion
+    flavor: b2.c4r8
+    image: debian-13
+    key_name: my key in Openstack
+    network: public
+    security_groups:
+      - outgoing
+      - ssh-from-sunet-jump
+    volume_size: 30
+    additional_overlays:
+      - example-common

@@ -5,7 +5,7 @@
 
 # What is Maestro?
 
-It's a set of orchestration tools to easier create hosts in Openstack, bootstrap cosmos and register in DNS (via knotctl). It also handles security groups.
+It's a set of orchestration tools to easier create hosts in Openstack, bootstrap cosmos and register in DNS (via knotctl). It also handles security groups and additional overlays.
 
 # Wooo! Sounds awesome. What do I need in order to use it?
 
@@ -14,7 +14,7 @@ It's a set of orchestration tools to easier create hosts in Openstack, bootstrap
 * A modern version knotctl with access to given zone(s) (Optional but probably preferred)
 * SUNET VPN (The Openstack APIs are protected)
 * A modern version of the openstack collection to ansible (`ansible-galaxy collection install openstack.cloud --upgrade`)
-* clouds.yaml which contains all the required sites
+* `clouds.yaml` which contains all the required sites
 
 # Configuration
 * Copy the examples files in `<ops-repo>/docs/maestro/` to `<ops-repo>/maestro/host_vars/localhost/` and make edits to match your repo/service (remove the example suffix from file names)
