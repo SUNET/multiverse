@@ -2,17 +2,93 @@
 
 if [[ -f /var/run/reboot-required && -f /etc/cosmos-automatic-reboot ]]; then
 
-	# May contain ALLOW_REBOOT_AT=
-	# Eg. ALLOW_REBOOT_AT=06
-	# shellcheck source=/dev/null
-	. /etc/cosmos-automatic-reboot
+    # Config (source file /etc/cosmos-automatic-reboot):
+    #   REBOOT_START / REBOOT_END   HH:MM - Reboot between these times. If start > end, end is treated as being on the next day. Default: 04:00 / 05:00
+    #   REBOOT_AT                   HH - Reboot at a specific hour. Takes precedence over REBOOT_START and REBOOT_END.
+    #   REBOOT_ANYTIME              true - Reboot at any time of day. Takes precedence over all other time settings.
+    #   REBOOT_DAY_OF_WEEK          1-7 - Weekday to reboot on (same as "date +%u", 1 = Monday).
+    #   REBOOT_CYCLE                Number - Reboot every N days instead (N-day cycle, counted in days since epoch)
+    #   REBOOT_CYCLE_DAY            Number/CMD - Used with REBOOT_CYCLE. Either a number, or a command that prints one. Default: first digit in hostname.
+    #   REBOOT_CHECK_SCRIPT         Filepath - Executable file, if it returns non-zero, the host will not reboot.
+    #   REBOOT_CHECK_TIMEOUT        Seconds - REBOOT_CHECK_SCRIPT is stopped by timeout after N seconds, also prevents a reboot.
+	#	TZ							Timezone - Used by all time calculations. Valid options: "timedatectl list-timezones". Default: "date +%Z".
+    # If neither REBOOT_DAY_OF_WEEK nor REBOOT_CYCLE is set, the host may reboot any day.
+    set -eo pipefail
+    source /etc/cosmos-automatic-reboot
+    REBOOT_START=${REBOOT_START:-04:00}
+    REBOOT_END=${REBOOT_END:-05:00}
+    REBOOT_CHECK_TIMEOUT=${REBOOT_CHECK_TIMEOUT:-60}
+    export TZ
 
-	if [ -n "${ALLOW_REBOOT_AT}" ]; then
-		if [ "${ALLOW_REBOOT_AT}" != "$(date +%H)" ]; then
-			echo "Scheduled to reboot at ${ALLOW_REBOOT_AT}"
-			exit
-		fi
-	fi
+    if [[ -n $REBOOT_AT ]]; then
+        REBOOT_START=$(printf '%02d:00' $(( 10#$REBOOT_AT )))
+        REBOOT_END=$(printf '%02d:00' $(( (10#$REBOOT_AT + 1) % 24 )))
+    fi
+
+    if [[ $REBOOT_ANYTIME == true ]]; then
+        REBOOT_START=00:00
+        REBOOT_END=00:00  # equal times make a full 24 h window
+    fi
+
+    seconds_per_day=86400
+
+    # Reduce every reboot day config to: reboot when (days since epoch) % cycle_length == reboot_day_in_cycle
+    cycle_length=1
+    reboot_day_in_cycle=0
+    if [[ -n $REBOOT_DAY_OF_WEEK ]]; then
+        cycle_length=7
+        reboot_day_in_cycle=$(( (REBOOT_DAY_OF_WEEK + 3) % 7 ))  # epoch day 0 was a Thursday ("date %u" = 4)
+    elif (( REBOOT_CYCLE > 0 )); then
+        cycle_length=$REBOOT_CYCLE
+        reboot_cycle_day=${REBOOT_CYCLE_DAY:-'hostname -f | grep -o "[0-9]" | head -1'}
+        [[ $reboot_cycle_day =~ ^[0-9]+$ ]] || reboot_cycle_day=$(eval "$reboot_cycle_day")
+        reboot_day_in_cycle=$(( reboot_cycle_day % cycle_length ))
+    fi
+
+    # Find the first window that has not ended yet, starting from yesterday so that
+    # a window crossing midnight is still found after 00:00. "date -d" parses times in $TZ.
+    now=$(date +%s)
+    for days_ahead in $(seq -1 "$cycle_length"); do
+        candidate_day=$(date -d "$days_ahead days" +%F)
+        candidate_day_number=$(( $(date -d "$candidate_day UTC" +%s) / seconds_per_day ))
+        (( candidate_day_number % cycle_length == reboot_day_in_cycle )) || continue
+
+        window_start=$(date -d "$candidate_day $REBOOT_START" +%s)
+        window_end=$(date -d "$candidate_day $REBOOT_END" +%s)
+        (( window_end <= window_start )) && window_end=$(date -d "$candidate_day $REBOOT_END +1 day" +%s)
+
+        (( now < window_end )) && break
+    done
+
+    if (( now < window_start )); then
+        seconds_left=$(( window_start - now ))
+        echo "This host is scheduled to reboot in $(( seconds_left / seconds_per_day )) day(s) and $(( seconds_left % seconds_per_day / 3600 )) hour(s), between $REBOOT_START and $REBOOT_END $(date +%Z)$([[ -n $TZ ]] && echo " ($TZ)")."
+        exit
+    fi
+
+    set +eo pipefail
+
+    # Optional pre-reboot check: only continue if the script exits with 0
+    if [[ -n "$REBOOT_CHECK_SCRIPT" ]]; then
+        if [[ ! -f "$REBOOT_CHECK_SCRIPT" ]]; then
+            echo "WARNING - REBOOT_CHECK_SCRIPT is defined but the file does not exist"
+            exit 1
+        fi
+        if [[ ! -x "$REBOOT_CHECK_SCRIPT" ]]; then
+            echo "WARNING - REBOOT_CHECK_SCRIPT is defined but not executable"
+            exit 1
+        fi
+
+        timeout "$REBOOT_CHECK_TIMEOUT" bash "$REBOOT_CHECK_SCRIPT"
+        rc=$?
+        if (( rc == 124 )); then
+            echo "$REBOOT_CHECK_SCRIPT timed out after ${REBOOT_CHECK_TIMEOUT}s, not rebooting"
+            exit 1
+        elif (( rc != 0 )); then
+            echo "$REBOOT_CHECK_SCRIPT returned $rc, not rebooting"
+            exit 1
+        fi
+    fi
 
 	if [[ $HOSTNAME =~ -tug- ]]; then
 		# Reboot hosts in site TUG with 15 seconds delay (enough to manually
