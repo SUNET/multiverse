@@ -1,0 +1,79 @@
+# 999reboot
+
+Reboots a host automatically after running cosmos, but only inside a configured time window, on days you choose, and only if your own safety check says it's OK.
+
+## When it reboots
+
+The script does nothing unless **both** are true:
+
+- `/var/run/reboot-required` exists (an update needs a reboot)
+- `/etc/cosmos-automatic-reboot` exists (the host has opted in)
+
+If either is missing, the script exits silently.
+
+## Configuration
+
+Set these in `/etc/cosmos-automatic-reboot`. The file is sourced as a bash script, so use `KEY=value` lines.
+
+### Time window
+
+| Variable | Format | Default | Meaning |
+|---|---|---|---|
+| `REBOOT_START` | `HH:MM` | `04:00` | Window start |
+| `REBOOT_END` | `HH:MM` | `05:00` | Window end. If earlier than start, it falls on the next day |
+| `REBOOT_AT` | `HH` | unset | Reboot during this hour (e.g. `3` = 03:00-04:00). Overrides start/end |
+| `REBOOT_ANYTIME` | `true` | unset | Window is the full 24 hours. Overrides everything else |
+| `TZ` | timezone name | system timezone | Used for all time calculations. List with `timedatectl list-timezones` |
+
+**Priority:** `REBOOT_ANYTIME` > `REBOOT_AT` > `REBOOT_START`/`REBOOT_END`.
+
+### Which days
+
+| Variable | Format | Meaning |
+|---|---|---|
+| `REBOOT_DAYS_OF_WEEK` | `1,3,5` | Weekdays allowed, same as `date +%u` (1 = Monday ... 7 = Sunday) |
+| `REBOOT_CYCLE` | number `N` | Reboot every N days instead, based on (days since the Unix epoch) % `N`. Should be the same on all hosts you wish to reboot on different days. Commonly, this will be set to the number of hosts in such a group |
+| `REBOOT_CYCLE_DAY` | number or command | Used with `REBOOT_CYCLE`. Picks which day in the cycle this host reboots. The number needs to be positive and should be different on other hosts in the same group after modulo `REBOOT_CYCLE` (e.g. if `REBOOT_CYCLE` is 3, having `REBOOT_CYCLE_DAY` set to 0 and 3 on different hosts will reboot them on the same day because `REBOOT_CYCLE_DAY` % `REBOOT_CYCLE` = 0 in both cases). Default: first digit in the hostname |
+
+- If `REBOOT_DAYS_OF_WEEK` is set, it wins over `REBOOT_CYCLE`.
+- If neither is set, any day is allowed.
+- `REBOOT_CYCLE_DAY` can be a command that prints a number. The result is taken modulo `REBOOT_CYCLE`.
+- Using the hostname digit as default spreads hosts such as `web1`, `web2` across different days as long as `REBOOT_CYCLE` is large enough.
+
+### Pre-reboot check
+
+| Variable | Format | Default | Meaning |
+|---|---|---|---|
+| `REBOOT_CHECK_SCRIPT` | file path | unset | Executable script. If it exits non-zero, no reboot |
+| `REBOOT_CHECK_TIMEOUT` | seconds `N` | `60` | Kill the check script after `N` seconds. A timeout also blocks the reboot |
+
+The check script runs only once the window has opened. Use it for things like "don't reboot while a cluster member is down".
+
+The script prints a warning and exits if the check script is missing or not executable.
+
+## Examples
+
+Reboot at 03:00-04:00 on Tuesdays and Thursdays:
+
+```bash
+REBOOT_AT=3
+REBOOT_DAYS_OF_WEEK=2,4
+```
+
+Reboot anytime, but only on Sundays, in Stockholm time:
+
+```bash
+REBOOT_ANYTIME=true
+REBOOT_DAYS_OF_WEEK=7
+TZ=Europe/Stockholm
+```
+
+Window crossing midnight (23:00-01:00) every 3rd day, with a safety check:
+
+```bash
+REBOOT_START=23:00
+REBOOT_END=01:00
+REBOOT_CYCLE=3
+REBOOT_CHECK_SCRIPT=/usr/local/bin/ok-to-reboot.sh
+REBOOT_CHECK_TIMEOUT=30
+```
