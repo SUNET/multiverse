@@ -6,13 +6,13 @@ if [[ -f /var/run/reboot-required && -f /etc/cosmos-automatic-reboot ]]; then
     #   REBOOT_START / REBOOT_END   HH:MM - Reboot between these times. If start > end, end is treated as being on the next day. Default: 04:00 / 05:00
     #   REBOOT_AT                   HH - Reboot at a specific hour. Takes precedence over REBOOT_START and REBOOT_END.
     #   REBOOT_ANYTIME              true - Reboot at any time of day. Takes precedence over all other time settings.
-    #   REBOOT_DAY_OF_WEEK          1-7 - Weekday to reboot on (same as "date +%u", 1 = Monday).
+    #   REBOOT_DAYS_OF_WEEK         1-7,1-7,... - Comma seperated list of weekdays to reboot on (same as "date +%u", 1 = Monday).
     #   REBOOT_CYCLE                Number - Reboot every N days instead (N-day cycle, counted in days since epoch)
     #   REBOOT_CYCLE_DAY            Number/CMD - Used with REBOOT_CYCLE. Either a number, or a command that prints one. Default: first digit in hostname.
     #   REBOOT_CHECK_SCRIPT         Filepath - Executable file, if it returns non-zero, the host will not reboot.
     #   REBOOT_CHECK_TIMEOUT        Seconds - REBOOT_CHECK_SCRIPT is stopped by timeout after N seconds, also prevents a reboot.
 	#	TZ							Timezone - Used by all time calculations. Valid options: "timedatectl list-timezones". Default: "date +%Z".
-    # If neither REBOOT_DAY_OF_WEEK nor REBOOT_CYCLE is set, the host may reboot any day.
+    # If neither REBOOT_DAYS_OF_WEEK nor REBOOT_CYCLE is set, the host may reboot any day.
     set -eo pipefail
     source /etc/cosmos-automatic-reboot
     REBOOT_START=${REBOOT_START:-04:00}
@@ -32,17 +32,20 @@ if [[ -f /var/run/reboot-required && -f /etc/cosmos-automatic-reboot ]]; then
 
     seconds_per_day=86400
 
-    # Reduce every reboot day config to: reboot when (days since epoch) % cycle_length == reboot_day_in_cycle
+    # Reduce every reboot day config to: reboot when (days since epoch) % cycle_length is in reboot_days_in_cycle
     cycle_length=1
-    reboot_day_in_cycle=0
-    if [[ -n $REBOOT_DAY_OF_WEEK ]]; then
+    reboot_days_in_cycle=(0)
+    if [[ -n $REBOOT_DAYS_OF_WEEK ]]; then
         cycle_length=7
-        reboot_day_in_cycle=$(( (REBOOT_DAY_OF_WEEK + 3) % 7 ))  # epoch day 0 was a Thursday ("date %u" = 4)
+        reboot_days_in_cycle=()
+        for d in ${REBOOT_DAYS_OF_WEEK//,/ }; do
+            reboot_days_in_cycle+=( $(( (d + 3) % 7 )) )  # epoch day 0 was a Thursday ("date %u" = 4)
+        done
     elif (( REBOOT_CYCLE > 0 )); then
         cycle_length=$REBOOT_CYCLE
         reboot_cycle_day=${REBOOT_CYCLE_DAY:-'hostname -f | grep -o "[0-9]" | head -1'}
         [[ $reboot_cycle_day =~ ^[0-9]+$ ]] || reboot_cycle_day=$(eval "$reboot_cycle_day")
-        reboot_day_in_cycle=$(( reboot_cycle_day % cycle_length ))
+        reboot_days_in_cycle=( $(( reboot_cycle_day % cycle_length )) )
     fi
 
     # Find the first window that has not ended yet, starting from yesterday so that
@@ -51,7 +54,8 @@ if [[ -f /var/run/reboot-required && -f /etc/cosmos-automatic-reboot ]]; then
     for days_ahead in $(seq -1 "$cycle_length"); do
         candidate_day=$(date -d "$days_ahead days" +%F)
         candidate_day_number=$(( $(date -d "$candidate_day UTC" +%s) / seconds_per_day ))
-        (( candidate_day_number % cycle_length == reboot_day_in_cycle )) || continue
+        day_in_cycle=$(( candidate_day_number % cycle_length ))
+        [[ " ${reboot_days_in_cycle[*]} " == *" $day_in_cycle "* ]] || continue
 
         window_start=$(date -d "$candidate_day $REBOOT_START" +%s)
         window_end=$(date -d "$candidate_day $REBOOT_END" +%s)
