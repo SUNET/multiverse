@@ -5,15 +5,34 @@ if [[ -f /var/run/reboot-required && -f /etc/cosmos-automatic-reboot ]]; then
 	# Documentation for the config options in "/etc/cosmos-automatic-reboot":
 	# https://github.com/SUNET/multiverse/blob/main/docs/999reboot.mkd
 	set -eo pipefail
+	# shellcheck source=/dev/null
 	source /etc/cosmos-automatic-reboot
 	REBOOT_START=${REBOOT_START:-04:00}
 	REBOOT_END=${REBOOT_END:-05:00}
+	REBOOT_CYCLE=${REBOOT_CYCLE:-0}
+	REBOOT_CYCLE_DAY_CMD=${REBOOT_CYCLE_DAY_CMD:-'hostname -s | grep -o "[0-9]" | head -1'}
+	REBOOT_CYCLE_DAY=${REBOOT_CYCLE_DAY:-$(eval "$REBOOT_CYCLE_DAY_CMD" || true)}
 	REBOOT_CHECK_TIMEOUT=${REBOOT_CHECK_TIMEOUT:-60}
 	export TZ
 
-	if [[ -n $REBOOT_AT ]]; then
-		REBOOT_START=$(printf '%02d:00' $((10#$REBOOT_AT)))
-		REBOOT_END=$(printf '%02d:00' $(((10#$REBOOT_AT + 1) % 24)))
+	if [[ -n $REBOOT_DAYS_OF_WEEK && ! $REBOOT_DAYS_OF_WEEK =~ ^[1-7](,[1-7])*$ ]]; then
+		echo "ERROR - REBOOT_DAYS_OF_WEEK is defined, but not a comma-separated list of weekday numbers"
+		exit 1
+	fi
+
+	if [[ ! $REBOOT_CYCLE =~ ^[0-9]+$ ]]; then
+		echo "ERROR - REBOOT_CYCLE must be a positive number"
+		exit 1
+	fi
+
+	if ((REBOOT_CYCLE > 0)) && [[ ! $REBOOT_CYCLE_DAY =~ ^[0-9]+$ ]]; then
+		echo "ERROR - REBOOT_CYCLE_DAY is not a positive number. The reason could be REBOOT_CYCLE_DAY_CMD or no digit in hostname"
+		exit 1
+	fi
+
+	if [[ -n $ALLOW_REBOOT_AT ]]; then
+		REBOOT_START=$(printf '%02d:00' $((10#$ALLOW_REBOOT_AT)))
+		REBOOT_END=$(printf '%02d:00' $(((10#$ALLOW_REBOOT_AT + 1) % 24)))
 	fi
 
 	if [[ $REBOOT_ANYTIME == true ]]; then
@@ -33,10 +52,8 @@ if [[ -f /var/run/reboot-required && -f /etc/cosmos-automatic-reboot ]]; then
 			reboot_days_in_cycle+=($(((d + 3) % 7))) # epoch day 0 was a Thursday ("date %u" = 4)
 		done
 	elif ((REBOOT_CYCLE > 0)); then
-		cycle_length=$REBOOT_CYCLE
-		reboot_cycle_day=${REBOOT_CYCLE_DAY:-'hostname -f | grep -o "[0-9]" | head -1'}
-		[[ $reboot_cycle_day =~ ^[0-9]+$ ]] || reboot_cycle_day=$(eval "$reboot_cycle_day")
-		reboot_days_in_cycle=($((reboot_cycle_day % cycle_length)))
+		cycle_length=10#$REBOOT_CYCLE
+		reboot_days_in_cycle=($((10#REBOOT_CYCLE_DAY % cycle_length)))
 	fi
 
 	# Find the first window that has not ended yet, starting from yesterday so that
@@ -66,22 +83,22 @@ if [[ -f /var/run/reboot-required && -f /etc/cosmos-automatic-reboot ]]; then
 	# Optional pre-reboot check: only continue if the script exits with 0
 	if [[ -n "$REBOOT_CHECK_SCRIPT" ]]; then
 		if [[ ! -f "$REBOOT_CHECK_SCRIPT" ]]; then
-			echo "WARNING - REBOOT_CHECK_SCRIPT is defined but the file does not exist"
+			echo "ERROR - REBOOT_CHECK_SCRIPT is defined but the file does not exist"
 			exit 1
 		fi
 		if [[ ! -x "$REBOOT_CHECK_SCRIPT" ]]; then
-			echo "WARNING - REBOOT_CHECK_SCRIPT is defined but not executable"
+			echo "ERROR - REBOOT_CHECK_SCRIPT is defined but not executable"
 			exit 1
 		fi
 
-		timeout "$REBOOT_CHECK_TIMEOUT" bash "$REBOOT_CHECK_SCRIPT"
+		timeout "$REBOOT_CHECK_TIMEOUT" "$REBOOT_CHECK_SCRIPT"
 		rc=$?
 		if ((rc == 124)); then
 			echo "$REBOOT_CHECK_SCRIPT timed out after ${REBOOT_CHECK_TIMEOUT}s, not rebooting"
-			exit 1
+			exit 0
 		elif ((rc != 0)); then
 			echo "$REBOOT_CHECK_SCRIPT returned $rc, not rebooting"
-			exit 1
+			exit 0
 		fi
 	fi
 
