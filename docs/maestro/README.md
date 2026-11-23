@@ -5,7 +5,7 @@
 
 # What is Maestro?
 
-It's a set of orchestration tools to easier create hosts in Openstack, bootstrap cosmos and register in DNS (via knotctl). It also handles security groups and additional overlays.
+It's a set of orchestration tools to easier create hosts in Openstack, bootstrap cosmos and register in DNS (via knotctl). It also handles security groups, additional overlays and extra data volumes.
 
 # Wooo! Sounds awesome. What do I need in order to use it?
 
@@ -70,6 +70,26 @@ ansible-playbook security_groups.yml
 ```
 ansible-playbook servers.yml
 ```
+
+# Extra data volumes
+
+A server can get extra Openstack volumes (on top of its boot volume) by listing them under `extra_volumes` in `servers.yml`:
+
+```
+    extra_volumes:
+      - name: data              # required, unique per server
+        size: 100               # GiB, required
+        mount: /srv/data        # optional: format and mount via cloud-init
+        fs: ext4                # optional, default ext4 (only used with mount)
+        volume_type: ssd        # optional
+        availability_zone: nova # optional
+```
+
+* Each volume is named `<host>-<name>` in Openstack.
+* With `mount` the volume is formatted (only if it has no filesystem yet) and mounted by cloud-init at first boot, using the stable `/dev/disk/by-id/virtio-*` path and the `nofail` option. Without `mount` the volume is only attached.
+* Volumes are attached when the instance is created. For an instance that already exists, running `servers.yml` creates and attaches the new volume, but does not format or mount it (cloud-init only runs at first boot), so do that by hand.
+* Maestro never deletes these volumes, so the data survives if the instance is rebuilt. Remove them manually in Openstack when no longer needed.
+* Changing `size` of an existing volume is not handled by Maestro.
 
 # Integration with knotctl
 

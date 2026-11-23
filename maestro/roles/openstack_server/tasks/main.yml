@@ -65,6 +65,19 @@
       | map(attribute='name')
       | list }}
 
+- name: Create the extra volumes of every server that asks for them
+  openstack.cloud.volume:
+    cloud: "{{ item.0.value.cloud }}"
+    state: present
+    display_name: "{{ item.0.key }}-{{ item.1.name }}"
+    size: "{{ item.1.size }}"
+    volume_type: "{{ item.1.volume_type | default(omit) }}"
+    availability_zone: "{{ item.1.availability_zone | default(omit) }}"
+  loop: "{{ openstack_server_hosts | subelements('value.extra_volumes', skip_missing=True) }}"
+  loop_control:
+    label: "{{ item.0.key }}-{{ item.1.name }}"
+  register: openstack_server_volumes
+
 - name: Launch and bootstrap an instance
   vars:
     bootstrap: /root/cosmos-init/apt/bootstrap-cosmos.sh
@@ -76,6 +89,12 @@
     # missing key instead of raising, and `or []` also covers an empty value.
     overlays: "{{ (item.value.get('additional_overlays') or []) | join(',') }}"
     overlay_arg: "{{ (' ' ~ overlays) if overlays else '' }}"
+    extra_volumes: "{{ item.value.get('extra_volumes') or [] }}"
+    volume_ids: >-
+      {{ openstack_server_volumes.results
+      | selectattr('item.0.key', 'equalto', item.key)
+      | map(attribute='volume.id') | list }}
+    has_mounts: "{{ extra_volumes | selectattr('mount', 'defined') | list | length > 0 }}"
   openstack.cloud.server:
     auto_ip: false
     name: "{{ item.key }}"
@@ -93,6 +112,7 @@
     boot_from_volume: true
     terminate_volume: true
     volume_size: "{{ item.value.volume_size }}"
+    volumes: "{{ volume_ids if volume_ids else omit }}"
     userdata: |
       #cloud-config
       hostname: {{ item.key }}
@@ -103,6 +123,22 @@
           name: root
       packages:
         - git
+      {% if has_mounts %}
+      fs_setup:
+      {% for v in extra_volumes %}
+      {% if v.mount is defined %}
+        - device: /dev/disk/by-id/virtio-{{ volume_ids[loop.index0][:20] }}
+          filesystem: {{ v.fs | default('ext4') }}
+          partition: none
+      {% endif %}
+      {% endfor %}
+      mounts:
+      {% for v in extra_volumes %}
+      {% if v.mount is defined %}
+        - [ /dev/disk/by-id/virtio-{{ volume_ids[loop.index0][:20] }}, "{{ v.mount }}", "{{ v.fs | default('ext4') }}", "defaults,nofail", "0", "2" ]
+      {% endif %}
+      {% endfor %}
+      {% endif %}
       # Note, that the list has to be proper yaml, so you have to quote
       # any characters yaml would eat (':' can be problematic)
       runcmd:
@@ -119,6 +155,16 @@
   register: openstack_server_returnvals
   loop_control:
     label: "{{ item.key }}"
+
+- name: Attach the extra volumes to their servers
+  openstack.cloud.server_volume:
+    cloud: "{{ item.0.value.cloud }}"
+    state: present
+    server: "{{ item.0.key }}"
+    volume: "{{ item.0.key }}-{{ item.1.name }}"
+  loop: "{{ openstack_server_hosts | subelements('value.extra_volumes', skip_missing=True) }}"
+  loop_control:
+    label: "{{ item.0.key }}-{{ item.1.name }}"
 
 - name: Get zones managed by knotctl
   ansible.builtin.command:
