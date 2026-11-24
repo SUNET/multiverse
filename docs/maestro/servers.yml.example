@@ -21,3 +21,9 @@ servers:
     volume_size: 30
     additional_overlays:
       - example-common
+    extra_volumes:
+      - name: data
+        size: 100
+        mount: /srv/data
+      - name: scratch     # no mount: only attached
+        size: 20
