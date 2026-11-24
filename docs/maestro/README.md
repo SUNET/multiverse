@@ -71,6 +71,21 @@ ansible-playbook security_groups.yml
 ansible-playbook servers.yml
 ```
 
+* Or do both in one go (security groups first, then servers)
+```
+ansible-playbook site.yml
+```
+
+# Limiting a run to one cloud
+
+All three playbooks accept `cloud_limit`, a cloud name (or comma separated list) from `clouds.yaml`. Only the servers and security groups in those clouds are processed; without it everything is.
+```
+ansible-playbook smoketest.yml -e cloud_limit=example.sunet.se-sunet-orion
+ansible-playbook security_groups.yml -e cloud_limit=example.sunet.se-sunet-orion
+ansible-playbook servers.yml -e cloud_limit=example.sunet.se-sunet-orion,example.sunet.se-safespring-dco
+```
+A name that matches no configured cloud fails the run instead of silently doing nothing.
+
 # Extra data volumes
 
 A server can get extra Openstack volumes (on top of its boot volume) by listing them under `extra_volumes` in `servers.yml`:
@@ -90,21 +105,6 @@ A server can get extra Openstack volumes (on top of its boot volume) by listing 
 * Volumes are attached when the instance is created. For an instance that already exists, running `servers.yml` creates and attaches the new volume, but does not format or mount it (cloud-init only runs at first boot), so do that by hand.
 * Maestro never deletes these volumes, so the data survives if the instance is rebuilt. Remove them manually in Openstack when no longer needed.
 * Changing `size` of an existing volume is not handled by Maestro.
-
-* Or do both in one go (security groups first, then servers)
-```
-ansible-playbook site.yml
-```
-
-# Limiting a run to one cloud
-
-All three playbooks accept `cloud_limit`, a cloud name (or comma separated list) from `clouds.yaml`. Only the servers and security groups in those clouds are processed; without it everything is.
-```
-ansible-playbook smoketest.yml -e cloud_limit=example.sunet.se-sunet-orion
-ansible-playbook security_groups.yml -e cloud_limit=example.sunet.se-sunet-orion
-ansible-playbook servers.yml -e cloud_limit=example.sunet.se-sunet-orion,example.sunet.se-safespring-dco
-```
-A name that matches no configured cloud fails the run instead of silently doing nothing.
 
 # Integration with knotctl
 
