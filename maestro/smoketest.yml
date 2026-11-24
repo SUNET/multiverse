@@ -16,6 +16,10 @@
         | unique
         | list
       }}
+    # Optional limit: -e cloud_limit=<cloud>[,<cloud>...]
+    cloud_limit_list: "{{ (cloud_limit | default('')).split(',') | map('trim') | reject('equalto', '') | list }}"
+    # Clouds to test: the limit if given, otherwise all of them.
+    test_datacenters: "{{ cloud_limit_list if cloud_limit_list else all_datacenters }}"
     # Set the minimum recommended Ansible version.
     recommended_ansible_version: "2.21"
 
@@ -88,12 +92,19 @@
           {{ invalid_security_groups | join(', ') }}
       when: invalid_security_groups | length > 0
 
+    # A typo in cloud_limit would otherwise silently test nothing.
+    - name: Validate cloud_limit limit
+      assert:
+        quiet: true
+        that: cloud_limit_list | difference(all_datacenters) | length == 0
+        fail_msg: "Unknown cloud(s) in cloud_limit: {{ cloud_limit_list | difference(all_datacenters) | join(', ') }}"
+
     # Verify that authentication succeeds against every
-    # referenced OpenStack cloud.
+    # referenced OpenStack cloud (or only those in cloud_limit).
     - name: Authenticate with all clouds
       openstack.cloud.auth:
         cloud: "{{ item }}"
-      loop: "{{ all_datacenters }}"
+      loop: "{{ test_datacenters }}"
       loop_control:
         label: "{{ item }}"
 
@@ -105,7 +116,7 @@
         name: "default"
       timeout: 3
       register: sg_result
-      loop: "{{ all_datacenters }}"
+      loop: "{{ test_datacenters }}"
       loop_control:
         label: "{{ item }}"
       ignore_errors: true

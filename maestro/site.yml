@@ -1,0 +1,5 @@
+---
+- name: Security groups
+  ansible.builtin.import_playbook: security_groups.yml
+- name: Servers
+  ansible.builtin.import_playbook: servers.yml
