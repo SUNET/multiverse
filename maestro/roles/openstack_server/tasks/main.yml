@@ -129,6 +129,10 @@
   # not fail a run whose instances came up fine; warn below instead. README
   # lists knotctl as optional, so "not installed" is a supported state.
   failed_when: false
+  # Read-only, so run it for real in --check mode too. Otherwise Ansible skips the
+  # command, stdout is empty, and the from_json below crashes (a --check-mode
+  # interaction, not a knotctl fault).
+  check_mode: false
 
 - name: Warn when knotctl is unavailable
   vars:
@@ -139,7 +143,9 @@
       knotctl is unavailable (rc={{ openstack_server_knotctl_user.rc | default('n/a') }}), so DNS records
       were NOT created for any new instance. Update DNS manually.
 
-      {{ openstack_server_knotctl_user.stderr | default(openstack_server_knotctl_user.msg | default('(no error output)')) }}
+      {{ (openstack_server_knotctl_user.stderr | default('') | trim)
+         or (openstack_server_knotctl_user.stdout | default('') | trim)
+         or openstack_server_knotctl_user.msg | default('(no error output)') }}
   ansible.builtin.set_fact:
     openstack_server_knotctl_warning: "{{ message | warn }}"
   when: (openstack_server_knotctl_user.rc | default(-1)) != 0
@@ -149,10 +155,33 @@
   ansible.builtin.set_fact:
     openstack_server_knotctl_zones: []
 
-- name: Collect knotctl-managed zones (without trailing dot)
+- name: Warn when knotctl ran (rc=0) but did not actually answer
+  vars:
+    # knotctl before 0.1.10 exits 0 on connection and decode errors and prints a
+    # plain-text error even with --json. 0.1.10 exits 1, which the "unavailable"
+    # warning above covers; this guard is for older installs, which would
+    # otherwise fall through to "no zones" without any warning.
+    knotctl_user_out: "{{ openstack_server_knotctl_user.stdout | default('') | trim }}"
+    message: |-
+      knotctl --json user exited 0 but did not return JSON, so DNS records were
+      NOT created for any new instance. Update DNS manually.
+
+      {{ knotctl_user_out | default('(no output)') }}
   ansible.builtin.set_fact:
-    openstack_server_knotctl_zones: "{{ (openstack_server_knotctl_user.stdout | from_json).zones | map('regex_replace', '\\.$', '') | list }}"
-  when: (openstack_server_knotctl_user.rc | default(-1)) == 0
+    openstack_server_knotctl_warning: "{{ message | warn }}"
+  when:
+    - (openstack_server_knotctl_user.rc | default(-1)) == 0
+    - (knotctl_user_out | first | default('')) != '{'
+  changed_when: false
+
+- name: Collect knotctl-managed zones (without trailing dot)
+  vars:
+    knotctl_user_out: "{{ openstack_server_knotctl_user.stdout | default('') | trim }}"
+  ansible.builtin.set_fact:
+    openstack_server_knotctl_zones: "{{ (knotctl_user_out | from_json).zones | map('regex_replace', '\\.$', '') | list }}"
+  when:
+    - (openstack_server_knotctl_user.rc | default(-1)) == 0
+    - (knotctl_user_out | first | default('')) == '{'
 
 - name: Resolve the knotctl-managed zone of each server
   ansible.builtin.set_fact:
@@ -219,9 +248,9 @@
   # stdout with rc 0. "Report the DNS records" below gets the change state from
   # the records themselves instead.
   #
-  # stdout is still worth reading for failures, which is the one thing knotctl
-  # does say clearly: an error payload (it exits 0 for a connection or decode
-  # failure) or a non-zero rc. See "Warn about DNS sync failures".
+  # stdout still shows failures: an error payload (knotctl < 0.1.10 exits 0 on
+  # connection/decode errors, 0.1.10+ exits 1) or a non-zero rc. See "Warn
+  # about DNS sync failures".
   changed_when: false
 
 - name: Warn when DNS was not synced for a created server (no knotctl-managed zone)
@@ -254,10 +283,9 @@
   loop: "{{ openstack_server_dns_sync.results }}"
   loop_control:
     label: "{{ item.item.item.key }}"
-  # Two failure shapes, neither of which rc alone catches. knotctl exits 0 on
-  # a connection or decode error and puts the error payload on stdout, and it
-  # exits non-zero for "Server not found" with the message on stdout too --
-  # so both streams are reported and stdout is part of the test.
+  # rc alone misses one shape: knotctl < 0.1.10 exits 0 on a connection/decode
+  # error (payload on stdout), and "Server not found" exits non-zero with its
+  # message on stdout. So both streams are reported and stdout is tested.
   when:
     - not (item.skipped | default(false))
     - (item.rc | default(-1)) != 0 or 'Error:' in (item.stdout | default(''))
