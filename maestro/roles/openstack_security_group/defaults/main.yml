@@ -1,0 +1,4 @@
+---
+# Optional runtime limit: -e cloud_limit=<cloud>[,<cloud>...]
+# Empty list means no limit (all clouds).
+openstack_security_group_cloud_limit: "{{ (cloud_limit | default('')).split(',') | map('trim') | reject('equalto', '') | list }}"

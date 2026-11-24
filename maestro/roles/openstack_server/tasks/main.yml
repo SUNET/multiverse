@@ -1,8 +1,17 @@
 ---
+- name: Reject a cloud_limit limit that names no cloud used by any server
+  ansible.builtin.assert:
+    quiet: true
+    that: openstack_server_cloud_limit | difference(servers.values() | map(attribute='cloud') | list) | length == 0
+    fail_msg: >-
+      Unknown cloud(s) in cloud_limit:
+      {{ openstack_server_cloud_limit | difference(servers.values() | map(attribute='cloud') | list) | join(', ') }}
+
 - name: Build CMDB from ops repo
   ansible.builtin.stat:
     path: "{{ repo_root }}/{{ item.key }}"
-  loop: "{{ servers | dict2items }}"
+  # With -e cloud_limit=..., only servers in those clouds are considered.
+  loop: "{{ servers | dict2items | selectattr('value.cloud', 'in', openstack_server_cloud_limit) if openstack_server_cloud_limit else servers | dict2items }}"
   loop_control:
     label: "{{ item.key }}"
   register: openstack_server_host_dirs
