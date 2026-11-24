@@ -1,4 +1,12 @@
 ---
+- name: Reject a cloud_limit limit that names no cloud used by any security group
+  ansible.builtin.assert:
+    quiet: true
+    that: openstack_security_group_cloud_limit | difference(security_groups.values() | map(attribute='datacenters') | flatten | list) | length == 0
+    fail_msg: >-
+      Unknown cloud(s) in cloud_limit:
+      {{ openstack_security_group_cloud_limit | difference(security_groups.values() | map(attribute='datacenters') | flatten | list) | join(', ') }}
+
 - name: Create (or update) a security group with security group rules
   openstack.cloud.security_group:
     name: "maestro-{{ security_group_name_prefix }}-{{ item.0.key }}"
@@ -8,6 +16,7 @@
     description: "{{ item.0.value.description | default('') }}"
   # Each security group declares the datacenters it applies to via its own
   # `datacenters` list; subelements pairs every group with each of its centers.
-  loop: "{{ security_groups | dict2items | subelements('value.datacenters') }}"
+  # With -e cloud_limit=..., only pairs in those clouds are processed.
+  loop: "{{ security_groups | dict2items | subelements('value.datacenters') | selectattr('1', 'in', openstack_security_group_cloud_limit) if openstack_security_group_cloud_limit else security_groups | dict2items | subelements('value.datacenters') }}"
   loop_control:
     label: "{{ item.1 }} {{ item.0.key }}"
