@@ -55,6 +55,14 @@ The check script runs only once the window has opened. Use it for things like "d
 
 The script blocks the reboot if the check script is missing or not executable.
 
+### Random sleep
+
+| Variable | Format | Default | Meaning |
+|---|---|---|---|
+| `RANDOM_SLEEP` | boolean | true | Sleeps for a random number of seconds before rebooting |
+| `RANDOM_SLEEP_MIN` | seconds | 15 | Sets the lower bound of possible sleep durations |
+| `RANDOM_SLEEP_MAX` | seconds | 300 | Sets the upper bound of possible sleep durations |
+
 ## Examples
 
 Reboot at 03:00-04:00 on Tuesdays and Thursdays:
