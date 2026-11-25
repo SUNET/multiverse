@@ -6,7 +6,10 @@ host=${1:?model hostname}
 repo=${2:?Git URL}
 tag=${3:?release tag prefix}
 IFS=, read -ra overlays <<<"${4:-}"
-valid_component() { [[ $1 =~ ^[[:alnum:]][[:alnum:]._-]*$ && $1 != *..* ]]; }
+valid_component() {
+	local component=$1
+	[[ $component =~ ^[[:alnum:]][[:alnum:]._-]*$ && $component != *..* ]]
+}
 valid_component "$host" && valid_component "$tag" || exit 2
 for overlay in "${overlays[@]}"; do valid_component "$overlay" || exit 2; done
 exec 200>/tmp/run-cosmos.lock

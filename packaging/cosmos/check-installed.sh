@@ -25,7 +25,7 @@ echo '# local hook customization' >>"$hook"
 sha256sum "$conf" "$hook" /etc/cosmos/keys/test.pub >local-files.sha256
 rpm -Uvh /packages/*.noarch.rpm
 sha256sum -c local-files.sha256
-test -s "$conf.rpmnew"
+[[ -s "$conf.rpmnew" ]]
 rpm -q --qf '%{ARCH}\n' cosmos | grep -Fx noarch
 cosmos --version 2>&1 | grep -Fx 'cosmos (Cosmos) 1.5'
 
@@ -43,7 +43,7 @@ git -C model tag -s -m first package-test-01
 git config --global url."file://$PWD/model".insteadOf https://example.invalid/model
 cosmos clone https://example.invalid/model
 cosmos update >update.log
-test "$(git -C cache/repo rev-parse HEAD)" = "$(git -C model rev-parse 'package-test-01^{commit}')"
+[[ $(git -C cache/repo rev-parse HEAD) == "$(git -C model rev-parse 'package-test-01^{commit}')" ]]
 cosmos apply
 grep -Fx node target/marker
 

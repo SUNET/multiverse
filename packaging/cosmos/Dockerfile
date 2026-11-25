@@ -1,4 +1,6 @@
-FROM almalinux:10@sha256:ccf217024b3d5e268cc208d1edb384a1edee6359370cf6ea1ecbc42254e57375 AS build
+FROM almalinux@sha256:ccf217024b3d5e268cc208d1edb384a1edee6359370cf6ea1ecbc42254e57375 AS alma10
+
+FROM alma10 AS build
 RUN dnf -y install rpm-build make patch && dnf clean all
 WORKDIR /root/rpmbuild
 COPY cosmos-1.5.tar.gz sunet-git-update.patch SOURCES/
@@ -25,7 +27,7 @@ RUN sed -e 's/^Release:.*/Release:        0.fixture%{?dist}/' \
         -e '/^%check/i echo "# Previous packaged default" >> %{buildroot}%{_sysconfdir}/cosmos/cosmos.conf' \
         SPECS/cosmos.spec > SPECS/previous.spec && rpmbuild -bb SPECS/previous.spec
 
-FROM almalinux:10@sha256:ccf217024b3d5e268cc208d1edb384a1edee6359370cf6ea1ecbc42254e57375 AS check
+FROM alma10 AS check
 COPY --from=binary /tmp/rebuild/RPMS/noarch/*.rpm /packages/
 COPY --from=build /root/rpmbuild/SRPMS/*.src.rpm /packages/
 COPY --from=previous /root/rpmbuild/RPMS/noarch/*fixture*.rpm /tmp/previous.rpm
