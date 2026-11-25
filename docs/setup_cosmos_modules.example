@@ -6,13 +6,12 @@ import os
 import os.path
 import socket
 import sys
-from debian import debian_support
+import shlex
 
 try:
-    from configobj import ConfigObj
-
-    OS_INFO = ConfigObj("/etc/os-release")
-except (IOError, ModuleNotFoundError):
+    with open("/etc/os-release") as release:
+        OS_INFO = dict(field.split("=", 1) for field in shlex.split(release.read(), comments=True))
+except OSError:
     OS_INFO = None
 
 try:
@@ -169,9 +168,11 @@ def main():
 
     # When/if we want we can do stuff to modules here
     if OS_INFO:
-        codename = OS_INFO["VERSION_CODENAME"]
+        codename = OS_INFO.get("VERSION_CODENAME")
         version = OS_INFO["VERSION_ID"]
         dist = OS_INFO["ID"]
+        if dist in ("debian", "ubuntu"):
+            from debian import debian_support
         if codename == "focal":
             modules["sunet"]["tag"] = "sunet-2*"
 

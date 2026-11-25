@@ -28,6 +28,13 @@ fi
 test "$COSMOS_VERBOSE" = "y" &&
 	echo "$0: Creating/updating /etc/puppet/cosmos-modules.conf with defaults from this script"
 
+. /etc/os-release
+if [ "$ID" = almalinux ]; then
+	# The base catalog uses built-in types. Sites declare signed Git modules
+	# in their overlay as the catalog grows.
+	echo '# Add signed Git module declarations to the site model.' >/etc/puppet/cosmos-modules.conf
+	exit 0
+fi
 cat >/etc/puppet/cosmos-modules.conf <<EOF
 # File created/updated by $0
 #

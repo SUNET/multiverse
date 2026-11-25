@@ -9,6 +9,8 @@ set -e
 GNUPGHOME=/etc/hiera/gpg
 export GNUPGHOME
 
+. /etc/os-release
+[ "$ID" = almalinux ] && exit 0
 vendor=$(lsb_release -is)
 version=$(lsb_release -rs)
 # If the OS is Ubuntu 18.04 or newer, or Debian 10 or newer, we don't need to do anything (those use eyaml instead)

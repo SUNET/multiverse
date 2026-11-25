@@ -1,3 +1,14 @@
 
 The system documentation is in the docs directory of the multiverse repository.
 
+
+Build the Cosmos binary RPM and SRPM locally for AlmaLinux 10:
+
+    make cosmos-rpm
+
+The build needs Docker with Buildx and access to the AlmaLinux package
+repositories. It exports the unsigned noarch RPM and its matching source RPM
+to build/cosmos-rpm/ after the installed-package checks pass. The signed
+packages and their public key are in rpm/. See docs/cosmos-rpm.md.
+
+For Debian or AlmaLinux 10 host enrollment, see docs/enrollment.md.

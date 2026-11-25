@@ -1,7 +1,8 @@
 #!/bin/bash
 
+. /etc/os-release
 gnupg_show_options=("--import" "--import-options" "show-only,import-minimal")
-if [[ $(lsb_release -si) = "Ubuntu" ]] && [[ $(lsb_release -sr | awk -F . '{ print $1 }') -le 16 ]]; then
+if [[ $ID == ubuntu && ${VERSION_ID%%.*} -le 16 ]]; then
 	# gpg on Ubuntu 16 and less is gnupg < 2, which doesn't have --import-options show-only
 	# but on the other hand defaults to this mode (https://dev.gnupg.org/T2943)
 	gnupg_show_options=("--dry-run")

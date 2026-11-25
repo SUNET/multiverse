@@ -1,0 +1,89 @@
+#!/bin/bash
+# Controller entry point used by both addhost and Maestro.
+set -euo pipefail
+host=${1:?SSH destination}
+fqdn=${2:?model host}
+overlays=${5:-}
+jump=${6:-}
+mode=${7:-enroll}
+cd "$(dirname "$0")/.."
+if [[ -f cosmos.conf ]]; then
+	# shellcheck source=/dev/null
+	. ./cosmos.conf
+fi
+repo=${3:-${repo:-$(git remote get-url "${remote:-ro}")}}
+tag=${4:-${tag:-changeme}}
+[[ $host =~ ^[a-zA-Z0-9:][a-zA-Z0-9.:%_-]*$ ]] || exit 2
+opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=8 -o ControlMaster=no -o ControlPath=none)
+if [[ -n ${COSMOS_SSH_CONFIG:-} ]]; then opts+=(-F "$COSMOS_SSH_CONFIG"); fi
+if [[ -n $jump ]]; then opts+=(-J "$jump"); fi
+peer="root@$host"
+
+if [[ $mode == maestro ]]; then
+	for ((attempt = 1; attempt <= 30; attempt++)); do
+		if ssh "${opts[@]}" "$peer" true; then break; fi
+		sleep 4
+	done
+	ssh "${opts[@]}" "$peer" 'timeout 600 cloud-init status --wait'
+	# cloud-init creates the marker only on instances provisioned by this role.
+	ssh "${opts[@]}" "$peer" 'test -f /var/lib/multiverse/enroll-pending || test -f /var/lib/multiverse/enrolled'
+	if ssh "${opts[@]}" "$peer" 'test -f /var/lib/multiverse/enrolled && test ! -e /var/lib/multiverse/enroll-pending'; then exit 0; fi
+fi
+
+if ! ssh "${opts[@]}" "$peer" 'test "$(id -u)" = 0'; then
+	pub=${COSMOS_PROVISIONING_PUBKEY:?set the provisioning SSH public key path for the AlmaLinux cloud-user handoff}
+	ssh-keygen -lf "$pub" >/dev/null
+	[[ $(awk 'END {print NR}' "$pub") == 1 ]] || exit 2
+	printf -v cmd 'sudo -n bash -s -- %q' "$(cat "$pub")"
+	ssh "${opts[@]}" "almalinux@$host" "$cmd" <<'HANDOFF'
+set -euo pipefail
+. /etc/os-release
+[[ $ID == almalinux && ${VERSION_ID%%.*} == 10 ]]
+umask 077
+install -d -m 0700 /root/.ssh /var/lib/multiverse
+touch /var/lib/multiverse/handoff-pending
+auth=/root/.ssh/authorized_keys
+touch "$auth"
+if ! grep -Fqx -- "$1" "$auth"; then
+	tmp=$(mktemp /root/.ssh/authorized_keys.XXXXXXXX)
+	trap 'rm -f "$tmp"' EXIT
+	{ printf '%s\n' "$1"; cat "$auth"; } > "$tmp"
+	mv -f "$tmp" "$auth"
+fi
+chmod 0600 "$auth"
+restorecon -R /root/.ssh
+HANDOFF
+fi
+
+platform=$(ssh "${opts[@]}" "$peer" 'set -eu; test "$(id -u)" = 0; . /etc/os-release; printf "%s %s\n" "$ID" "${VERSION_ID%%.*}"')
+shopt -s nullglob
+case $platform in
+'almalinux 10')
+	packages=(rpm/cosmos-*.el10.noarch.rpm)
+	rpmkey=${COSMOS_RPM_KEY:-rpm/kushal_rpm.pub}
+	;;
+debian\ * | ubuntu\ *) packages=(apt/cosmos_*.deb) ;;
+*)
+	echo "Unsupported platform: $platform" >&2
+	exit 1
+	;;
+esac
+((${#packages[@]})) || {
+	echo "No Cosmos package for $platform" >&2
+	exit 1
+}
+package=$(printf '%s\n' "${packages[@]}" | sort -V | tail -1)
+stage=$(ssh "${opts[@]}" "$peer" 'umask 077; mktemp -d /root/cosmos-enroll.XXXXXXXX')
+[[ $stage =~ ^/root/cosmos-enroll\.[[:alnum:]]{8}$ ]] || exit 1
+trap 'ssh "${opts[@]}" "$peer" "rm -rf -- $stage" || true' EXIT
+dest=$host
+if [[ $host == *:* ]]; then dest="[$host]"; fi
+scp_dest="root@$dest:$stage"
+scp "${opts[@]}" apt/bootstrap-cosmos.sh scripts/install-cosmos-package "$package" "$scp_dest/"
+if [[ -n ${rpmkey:-} ]]; then scp "${opts[@]}" "$rpmkey" "$scp_dest/rpm-key.pub"; fi
+if [[ $mode == maestro && $platform != 'almalinux 10' ]]; then
+	# Retain Maestro's Debian-family cloud networking and dist-upgrade.
+	ssh "${opts[@]}" "$peer" 'bash -s -- -s -c' < iaas-setup.sh
+fi
+printf -v cmd 'cd %q && bash ./bootstrap-cosmos.sh %q %q %q %q' "$stage" "$fqdn" "$repo" "$tag" "$overlays"
+ssh "${opts[@]}" "$peer" "$cmd"

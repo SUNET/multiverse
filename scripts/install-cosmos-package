@@ -1,0 +1,43 @@
+#!/bin/bash
+# Install the single controller-selected package in the current directory.
+set -euo pipefail
+export LC_ALL=C.UTF-8 DEBIAN_FRONTEND=noninteractive
+shopt -s nullglob
+. /etc/os-release
+case "$ID:${VERSION_ID%%.*}" in
+almalinux:10)
+	pkgs=(./cosmos-*.el10.noarch.rpm)
+	if ((${#pkgs[@]} != 1)) || [[ ! -s rpm-key.pub ]]; then
+		echo "Expected one EL10 Cosmos binary RPM and rpm-key.pub" >&2
+		exit 1
+	fi
+	# Verify against the provisioning key alone. RPM also succeeds on an
+	# unsigned digest-only package unless a signature is explicitly required.
+	rpmdb=$(mktemp -d)
+	trap 'rm -rf -- "$rpmdb"' EXIT
+	rpmkeys --dbpath "$rpmdb" --import rpm-key.pub
+	if ! result=$(rpmkeys --dbpath "$rpmdb" --checksig --verbose "${pkgs[0]}" 2>&1); then
+		printf '%s\n' "$result" >&2
+		exit 1
+	fi
+	grep -Eq 'Signature.*: OK$' <<<"$result" || {
+		echo 'Unsigned Cosmos RPM' >&2
+		exit 1
+	}
+	keyfile=/etc/pki/rpm-gpg/RPM-GPG-KEY-cosmos
+	install -D -m 0644 rpm-key.pub "$keyfile"
+	rpm --import "$keyfile"
+	dnf -y --setopt=localpkg_gpgcheck=1 install "${pkgs[0]}" git-core gnupg2 jq iproute cronie
+	;;
+debian:* | ubuntu:*)
+	pkgs=(./cosmos_*.deb)
+	((${#pkgs[@]} == 1)) || exit 1
+	apt-get update
+	apt-get -y upgrade
+	apt-get -y install rsync git gpg jq iproute2 lsb-release cron "${pkgs[0]}"
+	;;
+*)
+	echo "Unsupported OS: $PRETTY_NAME" >&2
+	exit 1
+	;;
+esac

@@ -1,0 +1,60 @@
+--- a/cosmos.conf
++++ b/cosmos.conf
+@@ -36,3 +36,7 @@
+ # You may enable verbosity globally instead of using -v.
+ # Usually this is not useful to set globally, use 'cosmos -v' instead.
+ #COSMOS_VERBOSE=y
++
++# The default branch for the Cosmos repository. Used when updating.
++# The default is to try and auto-detect this, falling back to 'master'.
++#COSMOS_DEFAULT_BRANCH="main"
+--- a/update.d/20update-git
++++ b/update.d/20update-git
+@@ -40,7 +40,15 @@
+ test -z "$COSMOS_VERBOSE" || \
+     echo "$self: invoking git: cd \"$COSMOS_REPO\" && git checkout $GIT_CHECKOUT_ARGS master && git pull $GIT_PULL_ARGS"
+ 
++if test -z "$COSMOS_DEFAULT_BRANCH"; then
++    _remote_head=`cd "$COSMOS_REPO" && git symbolic-ref --short refs/remotes/origin/HEAD; true`
++    _auto=`basename "$_remote_head"`
++    _branch=${_auto-'master'}
++else
++    _branch=$COSMOS_DEFAULT_BRANCH
++fi
++
+ cd "$COSMOS_REPO" && \
+-    $dry git checkout $GIT_CHECKOUT_ARGS master && \
++    $dry git checkout $GIT_CHECKOUT_ARGS "$_branch" && \
+     $dry git reset --hard && \
+     $dry git pull $GIT_PULL_ARGS
+--- a/update.d/25verify-git
++++ b/update.d/25verify-git
+@@ -78,15 +78,24 @@
+ 
+ cd $COSMOS_REPO && \
+     $dry git checkout $GIT_CHECKOUT_ARGS $tag && (
+-    if test -n "$COSMOS_VERBOSE"; then
+-	$dry git tag -v $tag
+-    elif test -n "$COSMOS_DRY_RUN$COSMOS_DRY_TASKS"; then
++    if test -z "$COSMOS_QUIET"; then
++        # Clearly show which commit is being used, unless told to be really quiet.
++        echo "$self: --------------"
++        echo "$self: Verifying tag:"
++        git show --show-signature --no-patch
++        echo "$self: --------------"
++    fi
++    if test -n "$COSMOS_DRY_RUN$COSMOS_DRY_TASKS"; then
+ 	echo 'git tag -v $tag > /dev/null 2>&1'
+     else
+-	git tag -v $tag > /dev/null 2>&1
++	git tag -v $tag > /dev/null 2>&1 || (
++	    echo "$0: Signature validation of tag ${tag} in ${COSMOS_REPO} failed, exiting."
++	    exit 1
++	)
+     fi
+ )
+ 
++
+ # FIXME: Should we protect against removed tags?  An attacker that
+ # controls the remote repository could remove tags in the repo to make
+ # machines find an older signed tag.  The attacker would then achieve

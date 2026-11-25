@@ -2,18 +2,30 @@
 
 set -e
 
+. /etc/os-release
+puppet=/usr/bin/puppet
 args=()
+if [[ $ID == almalinux ]]; then
+	puppet=/opt/puppetlabs/bin/puppet
+	args+=(--confdir /etc/puppet --config /etc/puppet/puppet.conf --hiera_config /etc/puppet/hiera.yaml)
+fi
 if [ "$COSMOS_VERBOSE" = "y" ]; then
 	args+=('--verbose')
-	args+=('--show_diff')
+	if [[ $ID != almalinux ]]; then args+=('--show_diff'); fi
 else
 	args+=('--logdest=syslog')
 fi
 
-if [ -f /usr/bin/puppet ] && [ -d /etc/puppet/manifests ]; then
+if [ -x "$puppet" ] && [ -d /etc/puppet/manifests ]; then
 	find /etc/puppet/manifests -name \*.pp | while read -r m; do
 		test "$COSMOS_VERBOSE" = "y" && echo "$0: Applying Puppet manifest $m"
-		puppet apply "${args[@]}" "$m"
+		if [[ -n ${COSMOS_PUPPET_RECEIPT:-} ]]; then
+			rc=0
+			"$puppet" apply --detailed-exitcodes "${args[@]}" "$m" || rc=$?
+			case $rc in 0|2) date -u >"$COSMOS_PUPPET_RECEIPT" ;; *) exit "$rc" ;; esac
+		else
+			"$puppet" apply "${args[@]}" "$m"
+		fi
 	done
 
 	PUPPET_REPORTS_DIR='/var/lib/puppet/reports'

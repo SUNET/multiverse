@@ -267,19 +267,15 @@ Bootstrapping a host is done using the 'addhost' command:
 # ./addhost -b $fqdn
 ```
 
-The -b flag causes addhost to attempt to bootstrap cosmos on the remote host using
-ssh as root. This requires that root key trust be established in advance. The addhost
-command creates and commits the necessary changes to the repository to add a host named
-$fqdn. Only fully qualified hostnames should ever be used in cosmos+puppet.
+The `-b` flag enrolls the host over SSH after the reviewed registration commit
+and signed release tag. Debian and Ubuntu use the bundled Debian package.
+AlmaLinux 10 uses a signed EL10 RPM and OpenVox 8. Enrollment uses the bundled
+RPM signing key. Verify the SSH host key before connecting. The AlmaLinux cloud-user
+handoff supports images that initially accept only `almalinux`.
 
-The bootstrap process will create a cron-job on $fqdn that runs
-
-```
-# cosmos update && cosmos apply
-```
-
-every 15 minutes. This should be a good starting point for your domain. Now you may
-want to add some 'naming rules'.
+The cron service runs `run-cosmos` at boot and every 15 minutes. See
+[enrollment, verification and recovery](enrollment.md) for the key inputs,
+log locations and retry procedure.
 
 To bootstrap a machine that is not yet configured in DNS, use the following options:
 
