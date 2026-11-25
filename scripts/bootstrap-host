@@ -34,8 +34,10 @@ if ! ssh "${opts[@]}" "$peer" 'test "$(id -u)" = 0'; then
 	pub=${COSMOS_PROVISIONING_PUBKEY:?set the provisioning SSH public key path for the AlmaLinux cloud-user handoff}
 	ssh-keygen -lf "$pub" >/dev/null
 	[[ $(awk 'END {print NR}' "$pub") == 1 ]] || exit 2
-	printf -v cmd 'sudo -n bash -s -- %q' "$(cat "$pub")"
-	ssh "${opts[@]}" "almalinux@$host" "$cmd" <<'HANDOFF'
+	pubkey=$(cat -- "$pub")
+	{
+		printf 'set -- %q\n' "$pubkey"
+		cat <<'HANDOFF'
 set -euo pipefail
 . /etc/os-release
 [[ $ID == almalinux && ${VERSION_ID%%.*} == 10 ]]
@@ -53,6 +55,7 @@ fi
 chmod 0600 "$auth"
 restorecon -R /root/.ssh
 HANDOFF
+	} | ssh "${opts[@]}" "almalinux@$host" 'sudo -n bash -se'
 fi
 
 platform=$(ssh "${opts[@]}" "$peer" 'set -eu; test "$(id -u)" = 0; . /etc/os-release; printf "%s %s\n" "$ID" "${VERSION_ID%%.*}"')
@@ -83,7 +86,7 @@ scp "${opts[@]}" apt/bootstrap-cosmos.sh scripts/install-cosmos-package "$packag
 if [[ -n ${rpmkey:-} ]]; then scp "${opts[@]}" "$rpmkey" "$scp_dest/rpm-key.pub"; fi
 if [[ $mode == maestro && $platform != 'almalinux 10' ]]; then
 	# Retain Maestro's Debian-family cloud networking and dist-upgrade.
-	ssh "${opts[@]}" "$peer" 'bash -s -- -s -c' < iaas-setup.sh
+	ssh "${opts[@]}" "$peer" 'bash -s -- -s -c' <iaas-setup.sh
 fi
 printf -v cmd 'cd %q && bash ./bootstrap-cosmos.sh %q %q %q %q' "$stage" "$fqdn" "$repo" "$tag" "$overlays"
-ssh "${opts[@]}" "$peer" "$cmd"
+ssh "${opts[@]}" "$peer" 'bash -se' <<<"$cmd"

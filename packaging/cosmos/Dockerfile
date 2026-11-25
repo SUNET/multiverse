@@ -35,3 +35,4 @@ RUN bash /tmp/check-installed.sh
 
 FROM scratch
 COPY --from=check /packages/ /
+USER 65534:65534

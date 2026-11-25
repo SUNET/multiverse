@@ -3,4 +3,4 @@
 # dpkg frequently breaks with automatic reboots.
 # Make an attempt to get it back into working order.
 . /etc/os-release
-case $ID in debian|ubuntu) dpkg --configure -a ;; esac
+case $ID in debian | ubuntu) dpkg --configure -a ;; esac

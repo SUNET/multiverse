@@ -22,7 +22,7 @@ if [ -x "$puppet" ] && [ -d /etc/puppet/manifests ]; then
 		if [[ -n ${COSMOS_PUPPET_RECEIPT:-} ]]; then
 			rc=0
 			"$puppet" apply --detailed-exitcodes "${args[@]}" "$m" || rc=$?
-			case $rc in 0|2) date -u >"$COSMOS_PUPPET_RECEIPT" ;; *) exit "$rc" ;; esac
+			case $rc in 0 | 2) date -u >"$COSMOS_PUPPET_RECEIPT" ;; *) exit "$rc" ;; esac
 		else
 			"$puppet" apply "${args[@]}" "$m"
 		fi
