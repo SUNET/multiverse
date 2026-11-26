@@ -12,10 +12,10 @@ if [[ -f /var/run/reboot-required && -f /etc/cosmos-automatic-reboot ]]; then
 	REBOOT_CYCLE=$((10#${REBOOT_CYCLE:-0}))
 	REBOOT_CYCLE_DAY_CMD=${REBOOT_CYCLE_DAY_CMD:-'hostname -s | grep -o "[0-9]" | head -1'}
 	REBOOT_CYCLE_DAY=${REBOOT_CYCLE_DAY:-$(eval "$REBOOT_CYCLE_DAY_CMD" || true)}
-	REBOOT_CHECK_TIMEOUT=${REBOOT_CHECK_TIMEOUT:-60}
+	REBOOT_CHECK_TIMEOUT=$((10#${REBOOT_CHECK_TIMEOUT:-60}))
 	RANDOM_SLEEP=${RANDOM_SLEEP:-true}
-	RANDOM_SLEEP_MIN=${RANDOM_SLEEP_MIN:-15}
-	RANDOM_SLEEP_MAX=${RANDOM_SLEEP_MAX:-300}
+	RANDOM_SLEEP_MIN=$((10#${RANDOM_SLEEP_MIN:-15}))
+	RANDOM_SLEEP_MAX=$((10#${RANDOM_SLEEP_MAX:-300}))
 	export TZ
 
 	if [[ -n $REBOOT_DAYS_OF_WEEK && ! $REBOOT_DAYS_OF_WEEK =~ ^[1-7](,[1-7])*$ ]]; then
@@ -84,7 +84,7 @@ if [[ -f /var/run/reboot-required && -f /etc/cosmos-automatic-reboot ]]; then
 	set +eo pipefail
 
 	if [[ $RANDOM_SLEEP == true ]]; then
-		sleep=$((RANDOM_SLEEP_MIN + (RANDOM % (RANDOM_SLEEP_MAX - RANDOM_SLEEP_MIN))))
+		sleep=$((RANDOM_SLEEP_MIN + (RANDOM_SLEEP_MAX > RANDOM_SLEEP_MIN ? RANDOM % (RANDOM_SLEEP_MAX - RANDOM_SLEEP_MIN) : 0)))
 		logger -p local0.emerg -i -t cosmos-automatic-reboot "Rebooting automatically in $sleep seconds (if /var/run/reboot-required still exists)"
 		sleep $sleep
 	fi
