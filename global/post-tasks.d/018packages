@@ -70,8 +70,22 @@ if [ -f "$CONFIG" ] || [ "$LOCALCONFIG" ]; then
 					continue
 				fi
 			elif [[ $ID == almalinux ]]; then
-				echo "Expected a signed Git module source for ${module}" >&2
-				exit 1
+				case "$module:$src" in
+					concat:puppetlabs/concat|stdlib:puppetlabs/stdlib)
+						# Install into the module path used by the Cosmos catalog.
+						puppet=/opt/puppetlabs/bin/puppet
+						modules=/etc/puppet/modules
+						if [[ ! -d "$modules/$module" ]]; then
+							"$puppet" module install "$src" --target-dir "$modules" --modulepath "$modules"
+						elif [[ $update == yes ]]; then
+							"$puppet" module upgrade "$src" --modulepath "$modules"
+						fi
+						;;
+					*)
+						echo "Expected a signed Git source for ${module} or an upstream concat/stdlib module" >&2
+						exit 1
+						;;
+				esac
 			elif [[ "$src" =~ .*:// ]]; then
 				echo -e "${red}ERROR: Don't know how to install '${src}'${reset}"
 				continue
