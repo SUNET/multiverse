@@ -1,33 +1,26 @@
 #!/bin/bash
 
 cmd_hostname=""
-cmd_mode=""
+cmd_do_bootstrap="no"
 cmd_fqdn=""
 
 function usage() {
-	echo "Usage: $0 [-h] [-b | -r] [-p jump-host] [-n fqdn] [--] [<host>]"
+	echo "Usage: $0 [-h] [-b] [-p jump-host] [-n fqdn] [--] [<host>]"
 	echo "  -h  show help"
-	echo "  -b  bootstrap <host> over SSH (default)"
-	echo "  -r  register <host> in Git for later bootstrap"
+	echo "  -b  bootstrap <host> (using ssh)"
 	echo "  -p  SSH jump host"
 	echo "  -n  specify FQDN (if not the same as <host>)"
 	echo ""
 	echo "  <host> can be an IP number, or something that resolves to one"
 }
 
-while getopts "brhn:p:" this; do
+while getopts "bhn:p:" this; do
 	case "${this}" in
 	h)
 		usage
 		exit 0
 		;;
-	b | r)
-		if [[ -n $cmd_mode && $cmd_mode != "$this" ]]; then
-			usage >&2
-			exit 1
-		fi
-		cmd_mode=$this
-		;;
+	b) cmd_do_bootstrap="yes" ;;
 	n) cmd_fqdn="${OPTARG}" ;;
 	p) cmd_proxy="${OPTARG}" ;;
 	*)
@@ -76,6 +69,6 @@ if [ ! -d "$cmd_fqdn" ]; then
 	./bump-tag || exit 1
 fi
 
-if [[ ${cmd_mode:-b} == b ]]; then
+if [ "$cmd_do_bootstrap" = "yes" ]; then
 	exec scripts/bootstrap-host "$cmd_hostname" "$cmd_fqdn" "$rrepo" "$rtag" "" "${cmd_proxy:-}"
 fi

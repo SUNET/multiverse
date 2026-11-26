@@ -10,17 +10,13 @@ for the read-only model URL. The host must be able to reach that URL.
 | `rpm/cosmos-*.el10.noarch.rpm` and `rpm/kushal_rpm.pub` | AlmaLinux enrollment verifies the binary with the bundled key in an isolated RPM database, installs the key as `/etc/pki/rpm-gpg/RPM-GPG-KEY-cosmos`, and imports it into the system RPM database for DNF. Set `COSMOS_RPM_KEY` to select a different signing key for a local test build. |
 | `COSMOS_PROVISIONING_PUBKEY` | Path to the public key corresponding to the workstation SSH identity. Needed when a fresh AlmaLinux image initially accepts only the `almalinux` login. |
 
-Run `./addhost HOST` to register the host and enroll it over SSH. The bootstrap
-installs the signed Cosmos RPM on AlmaLinux 10 or the Cosmos Debian package on
-Debian and Ubuntu, then applies the signed model. The existing `-b` flag also
-selects this behavior. Use `-r` to publish the host registration ahead of
-provisioning. The destination can be an IP address before DNS is configured.
+Register the host and review its Git commit and signed tag. Add `-b` to enroll
+it immediately, or rerun the command with `-b` after registration. The
+destination can be an IP address before DNS is configured.
 
 ```sh
 ./addhost app-1.example.org
-# For a host that will be provisioned later:
-./addhost -r app-2.example.org
-./addhost -n app-2.example.org -- 192.0.2.40
+./addhost -b -n app-1.example.org -- 192.0.2.40
 ```
 
 For a fresh AlmaLinux cloud guest behind a jump host:
@@ -79,7 +75,7 @@ used for manual convergence. During enrollment, a failed model update, missing c
 resource error fails the first apply. Inspect
 the controller error and `/var/log/cosmos.log`, correct the input or publish
 a reviewed signed fix, and rerun the original enrollment command. For a
-later scheduled failure, run `run-cosmos -v` as root and
+later scheduled failure, run `/usr/local/bin/run-cosmos -v` as root and
 check the new success stamp.
 
 ## Validation history

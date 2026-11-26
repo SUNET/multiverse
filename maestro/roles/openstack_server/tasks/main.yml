@@ -18,7 +18,7 @@
 
 - name: Warn about servers missing from ops repo
   ansible.builtin.set_fact:
-    openstack_server_skip_warning: "{{ ('skipping ' ~ item ~ ' — no host directory (run ./addhost -r ' ~ item ~ ')') | warn }}"
+    openstack_server_skip_warning: "{{ ('skipping ' ~ item ~ ' — no host directory (run ./addhost ' ~ item ~ ')') | warn }}"
   loop: "{{ openstack_server_host_dirs.results | rejectattr('stat.exists') | map(attribute='item.key') | list }}"
   loop_control:
     label: "{{ item }}"

@@ -264,11 +264,11 @@ Adding a host
 Bootstrapping a host is done using the 'addhost' command:
 
 ```
-# ./addhost $fqdn
+# ./addhost -b $fqdn
 ```
 
-By default, enrollment runs over SSH after the reviewed registration commit
-and signed release tag. Pass `-r` for registration only. Debian and Ubuntu use the bundled Debian package.
+The `-b` flag enrolls the host over SSH after the reviewed registration commit
+and signed release tag. Debian and Ubuntu use the bundled Debian package.
 AlmaLinux 10 uses a signed EL10 RPM and OpenVox 8. Enrollment uses the bundled
 RPM signing key. Verify the SSH host key before connecting. The AlmaLinux cloud-user
 handoff supports images that initially accept only `almalinux`.
