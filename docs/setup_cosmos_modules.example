@@ -89,15 +89,11 @@ def create_file_content(modules):
             os.path.basename(sys.argv[0])
         ).encode("utf-8")
     )
-    for key in modules:
-        file_lines.append(
-            "{0:11} {1} {2} {3}\n".format(  # pylint: disable=consider-using-f-string
-                key,
-                modules[key]["repo"],
-                modules[key]["upgrade"],
-                modules[key]["tag"],
-            ).encode("utf-8")
-        )
+    for name, module in modules.items():
+        line = f"{name:11} {module['repo']} {module['upgrade']}"
+        if "tag" in module:
+            line += f" {module['tag']}"
+        file_lines.append((line + "\n").encode("utf-8"))
 
     return file_lines
 
@@ -171,6 +167,9 @@ def main():
         codename = OS_INFO.get("VERSION_CODENAME")
         version = OS_INFO["VERSION_ID"]
         dist = OS_INFO["ID"]
+        if dist == "almalinux" and version.split(".")[0] == "10":
+            for name in ("concat", "stdlib"):
+                modules[name] = {"repo": f"puppetlabs/{name}", "upgrade": "yes"}
         if dist in ("debian", "ubuntu"):
             from debian import debian_support
         if codename == "focal":

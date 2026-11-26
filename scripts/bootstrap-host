@@ -112,11 +112,18 @@ package=$(printf '%s\n' "${packages[@]}" | sort -V | tail -1)
 stage=$(ssh "${opts[@]}" "$peer" 'umask 077; mktemp -d /root/cosmos-enroll.XXXXXXXX')
 [[ $stage =~ ^/root/cosmos-enroll\.[[:alnum:]]{8}$ ]] || exit 1
 trap 'ssh "${opts[@]}" "$peer" "rm -rf -- $stage" || true' EXIT
-dest=$host
-if [[ $host == *:* ]]; then dest="[$host]"; fi
-scp_dest="root@$dest:$stage"
-scp "${opts[@]}" apt/bootstrap-cosmos.sh scripts/install-cosmos-package "$package" "$scp_dest/"
-if [[ -n ${rpmkey:-} ]]; then scp "${opts[@]}" "$rpmkey" "$scp_dest/rpm-key.pub"; fi
+# Stream the bundle over the same SSH command channel used to run it.
+send_file() {
+	local cmd
+	printf -v cmd 'cat > %q' "$stage/${2:-${1##*/}}"
+	# The destination is deliberately quoted for the remote shell above.
+	# shellcheck disable=SC2029
+	ssh "${opts[@]}" "$peer" "$cmd" <"$1"
+}
+send_file apt/bootstrap-cosmos.sh
+send_file apt/install-cosmos-package
+send_file "$package"
+if [[ -n ${rpmkey:-} ]]; then send_file "$rpmkey" rpm-key.pub; fi
 if [[ $mode == maestro && $platform != 'almalinux 10' ]]; then
 	# Retain Maestro's Debian-family cloud networking and dist-upgrade.
 	ssh "${opts[@]}" "$peer" 'bash -s -- -s -c' <iaas-setup.sh
