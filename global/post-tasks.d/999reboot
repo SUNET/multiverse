@@ -2,35 +2,115 @@
 
 if [[ -f /var/run/reboot-required && -f /etc/cosmos-automatic-reboot ]]; then
 
-	# May contain ALLOW_REBOOT_AT=
-	# Eg. ALLOW_REBOOT_AT=06
+	# Documentation for the config options in "/etc/cosmos-automatic-reboot":
+	# https://github.com/SUNET/multiverse/blob/main/docs/999reboot.mkd
+	set -eo pipefail
 	# shellcheck source=/dev/null
-	. /etc/cosmos-automatic-reboot
+	source /etc/cosmos-automatic-reboot
+	REBOOT_START=${REBOOT_START:-04:00}
+	REBOOT_END=${REBOOT_END:-05:00}
+	REBOOT_CYCLE=$((10#${REBOOT_CYCLE:-0}))
+	REBOOT_CYCLE_DAY_CMD=${REBOOT_CYCLE_DAY_CMD:-'hostname -s | grep -o "[0-9]" | head -1'}
+	REBOOT_CYCLE_DAY=${REBOOT_CYCLE_DAY:-$(eval "$REBOOT_CYCLE_DAY_CMD" || true)}
+	REBOOT_CHECK_TIMEOUT=$((10#${REBOOT_CHECK_TIMEOUT:-60}))
+	RANDOM_SLEEP=${RANDOM_SLEEP:-true}
+	RANDOM_SLEEP_MIN=$((10#${RANDOM_SLEEP_MIN:-15}))
+	RANDOM_SLEEP_MAX=$((10#${RANDOM_SLEEP_MAX:-300}))
+	export TZ
 
-	if [ -n "${ALLOW_REBOOT_AT}" ]; then
-		if [ "${ALLOW_REBOOT_AT}" != "$(date +%H)" ]; then
-			echo "Scheduled to reboot at ${ALLOW_REBOOT_AT}"
-			exit
+	if [[ -n $REBOOT_DAYS_OF_WEEK && ! $REBOOT_DAYS_OF_WEEK =~ ^[1-7](,[1-7])*$ ]]; then
+		echo "ERROR - REBOOT_DAYS_OF_WEEK is defined, but not a comma-separated list of weekday numbers"
+		exit 1
+	fi
+
+	if [[ ! $REBOOT_CYCLE =~ ^[0-9]+$ ]]; then
+		echo "ERROR - REBOOT_CYCLE must be a positive number"
+		exit 1
+	fi
+
+	if [[ -z $REBOOT_DAYS_OF_WEEK ]] && ((REBOOT_CYCLE > 0)) && [[ ! $REBOOT_CYCLE_DAY =~ ^[0-9]+$ ]]; then
+		echo "ERROR - REBOOT_CYCLE_DAY is not a positive number. The reason could be REBOOT_CYCLE_DAY_CMD or no digit in hostname"
+		exit 1
+	fi
+
+	if [[ -n $ALLOW_REBOOT_AT ]]; then
+		REBOOT_START=$(printf '%02d:00' $((10#$ALLOW_REBOOT_AT)))
+		REBOOT_END=$(printf '%02d:00' $(((10#$ALLOW_REBOOT_AT + 1) % 24)))
+	fi
+
+	if [[ $REBOOT_ANYTIME == true ]]; then
+		REBOOT_START=00:00
+		REBOOT_END=00:00 # equal times make a full 24 h window
+	fi
+
+	seconds_per_day=86400
+
+	# Reduce every reboot day config to: reboot when (days since epoch) % cycle_length is in reboot_days_in_cycle
+	cycle_length=1
+	reboot_days_in_cycle=(0)
+	if [[ -n $REBOOT_DAYS_OF_WEEK ]]; then
+		cycle_length=7
+		reboot_days_in_cycle=()
+		for d in ${REBOOT_DAYS_OF_WEEK//,/ }; do
+			reboot_days_in_cycle+=($(((d + 3) % 7))) # epoch day 0 was a Thursday ("date %u" = 4)
+		done
+	elif ((REBOOT_CYCLE > 0)); then
+		cycle_length=$REBOOT_CYCLE
+		reboot_days_in_cycle=($((10#$REBOOT_CYCLE_DAY % cycle_length)))
+	fi
+
+	# Find the first window that has not ended yet, starting from yesterday so that
+	# a window crossing midnight is still found after 00:00. "date -d" parses times in $TZ.
+	now=$(date +%s)
+	for days_ahead in $(seq -1 "$cycle_length"); do
+		candidate_day=$(date -d "$days_ahead days" +%F)
+		candidate_day_number=$(($(date -d "$candidate_day UTC" +%s) / seconds_per_day))
+		day_in_cycle=$((candidate_day_number % cycle_length))
+		[[ " ${reboot_days_in_cycle[*]} " == *" $day_in_cycle "* ]] || continue
+
+		window_start=$(date -d "$candidate_day $REBOOT_START" +%s)
+		window_end=$(date -d "$candidate_day $REBOOT_END" +%s)
+		((window_end <= window_start)) && window_end=$(date -d "$candidate_day $REBOOT_END +1 day" +%s)
+
+		((now < window_end)) && break
+	done
+
+	if ((now < window_start)); then
+		seconds_left=$((window_start - now))
+		echo "This host is scheduled to reboot in $((seconds_left / seconds_per_day)) day(s) and $((seconds_left % seconds_per_day / 3600)) hour(s), between $REBOOT_START and $REBOOT_END $(date +%Z)$([[ -n $TZ ]] && echo " ($TZ)")."
+		exit
+	fi
+
+	set +eo pipefail
+
+	if [[ $RANDOM_SLEEP == true ]]; then
+		sleep=$((RANDOM_SLEEP_MIN + (RANDOM_SLEEP_MAX > RANDOM_SLEEP_MIN ? RANDOM % (RANDOM_SLEEP_MAX - RANDOM_SLEEP_MIN) : 0)))
+		logger -p local0.emerg -i -t cosmos-automatic-reboot "Rebooting automatically in $sleep seconds (if /var/run/reboot-required still exists)"
+		sleep $sleep
+	fi
+
+	# Optional pre-reboot check: only continue if the script exits with 0
+	if [[ -n "$REBOOT_CHECK_SCRIPT" ]]; then
+		if [[ ! -f "$REBOOT_CHECK_SCRIPT" ]]; then
+			echo "ERROR - REBOOT_CHECK_SCRIPT is defined but the file does not exist"
+			exit 1
+		fi
+		if [[ ! -x "$REBOOT_CHECK_SCRIPT" ]]; then
+			echo "ERROR - REBOOT_CHECK_SCRIPT is defined but not executable"
+			exit 1
+		fi
+
+		timeout "$REBOOT_CHECK_TIMEOUT" "$REBOOT_CHECK_SCRIPT"
+		rc=$?
+		if ((rc == 124)); then
+			echo "$REBOOT_CHECK_SCRIPT timed out after ${REBOOT_CHECK_TIMEOUT}s, not rebooting"
+			exit 0
+		elif ((rc != 0)); then
+			echo "$REBOOT_CHECK_SCRIPT returned $rc, not rebooting"
+			exit 0
 		fi
 	fi
 
-	if [[ $HOSTNAME =~ -tug- ]]; then
-		# Reboot hosts in site TUG with 15 seconds delay (enough to manually
-		# cancel the reboot if logged in and seeing the 'emerg' message broadcasted to console)
-		sleep=15
-	elif [[ $HOSTNAME =~ -fre- ]]; then
-		# reboot hosts in site FRE with 15+180 to 15+180+180 seconds delay
-		sleep=$((180 + (RANDOM % 180)))
-	elif [[ $HOSTNAME =~ -lla- ]]; then
-		# reboot hosts in site LLA with 15+180+180 to 15+180+180+180 seconds delay
-		sleep=$((375 + (RANDOM % 180)))
-	else
-		# reboot hosts in any other site with 15 to 315 seconds delay
-		sleep=$((15 + (RANDOM % 300)))
-	fi
-
-	logger -p local0.emerg -i -t cosmos-automatic-reboot "Rebooting automatically in $sleep seconds (if /var/run/reboot-required still exists)"
-	sleep $sleep
 	if [ -f /var/run/reboot-required ]; then
 		logger -p local0.crit -i -t cosmos-automatic-reboot "Rebooting automatically"
 		# Signal to run-cosmos
