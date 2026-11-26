@@ -48,7 +48,7 @@ clouds:
 
 * Add the host(s) to the ops-repo (⚠️ without bootstrap)
 ```
-./addhost my-aweseome-example.example.com
+./addhost -r my-aweseome-example.example.com
 ```
 
 * Get yourself the maestro directory in the ops repo
