@@ -30,32 +30,65 @@ if [[ $mode == maestro ]]; then
 	if ssh "${opts[@]}" "$peer" 'test -f /var/lib/multiverse/enrolled && test ! -e /var/lib/multiverse/enroll-pending'; then exit 0; fi
 fi
 
-if ! ssh "${opts[@]}" "$peer" 'test "$(id -u)" = 0'; then
-	pub=${COSMOS_PROVISIONING_PUBKEY:?set the provisioning SSH public key path for the AlmaLinux cloud-user handoff}
-	ssh-keygen -lf "$pub" >/dev/null
-	[[ $(awk 'END {print NR}' "$pub") == 1 ]] || exit 2
-	pubkey=$(cat -- "$pub")
+# Cloud-init may accept the key but run a login-hint command instead.
+if ! root_uid=$(ssh "${opts[@]}" "$peer" 'id -u') || [[ $root_uid != 0 ]]; then
+	pubkey=""
+	if [[ -n ${COSMOS_PROVISIONING_PUBKEY:-} ]]; then
+		ssh-keygen -lf "$COSMOS_PROVISIONING_PUBKEY" >/dev/null
+		[[ $(awk 'END {print NR}' "$COSMOS_PROVISIONING_PUBKEY") == 1 ]] || exit 2
+		pubkey=$(cat -- "$COSMOS_PROVISIONING_PUBKEY")
+	fi
 	{
 		printf 'set -- %q\n' "$pubkey"
 		cat <<'HANDOFF'
 set -euo pipefail
 . /etc/os-release
 [[ $ID == almalinux && ${VERSION_ID%%.*} == 10 ]]
+key=$1
+if [[ -z $key ]]; then
+	# Only use an instance-provisioned key still authorized for normal cloud-user login.
+	key=$(python3 - <<'PYKEY'
+import json
+import pwd
+from pathlib import Path
+
+data = Path("/run/cloud-init/instance-data.json")
+hint = "Set COSMOS_PROVISIONING_PUBKEY to the workstation SSH public key"
+if not data.is_file():
+    raise SystemExit(hint)
+keys = json.loads(data.read_text()).get("v1", {}).get("public_ssh_keys") or []
+if not isinstance(keys, list) or len(keys) != 1 or not isinstance(keys[0], str) or len(keys[0].splitlines()) != 1:
+    raise SystemExit(hint)
+key = keys[0].split()
+authorized = Path(pwd.getpwnam("almalinux").pw_dir, ".ssh", "authorized_keys")
+if len(key) < 2 or not authorized.is_file() or not any(
+    line.split()[:2] == key[:2] for line in authorized.read_text().splitlines()
+):
+    raise SystemExit(hint)
+print(" ".join(key[:2]))
+PYKEY
+	)
+fi
+ssh-keygen -lf - <<<"$key" >/dev/null
 umask 077
 install -d -m 0700 /root/.ssh /var/lib/multiverse
 touch /var/lib/multiverse/handoff-pending
 auth=/root/.ssh/authorized_keys
 touch "$auth"
-if ! grep -Fqx -- "$1" "$auth"; then
+if ! grep -Fqx -- "$key" "$auth"; then
 	tmp=$(mktemp /root/.ssh/authorized_keys.XXXXXXXX)
 	trap 'rm -f "$tmp"' EXIT
-	{ printf '%s\n' "$1"; cat "$auth"; } > "$tmp"
+	{ printf '%s\n' "$key"; cat "$auth"; } > "$tmp"
 	mv -f "$tmp" "$auth"
 fi
 chmod 0600 "$auth"
 restorecon -R /root/.ssh
 HANDOFF
 	} | ssh "${opts[@]}" "almalinux@$host" 'sudo -n bash -se'
+	if ! root_uid=$(ssh "${opts[@]}" "$peer" 'id -u') || [[ $root_uid != 0 ]]; then
+		echo "Root SSH handoff failed; verify the provisioning identity and root SSH policy on $host" >&2
+		exit 1
+	fi
 fi
 
 platform=$(ssh "${opts[@]}" "$peer" 'set -eu; test "$(id -u)" = 0; . /etc/os-release; printf "%s %s\n" "$ID" "${VERSION_ID%%.*}"')

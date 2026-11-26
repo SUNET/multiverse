@@ -8,7 +8,7 @@ for the read-only model URL. The host must be able to reach that URL.
 | --- | --- |
 | Verified SSH host key or host CA, SSH identity | Authenticate the destination and the provisioning account. `COSMOS_SSH_CONFIG` can point to a separate OpenSSH configuration. |
 | `rpm/cosmos-*.el10.noarch.rpm` and `rpm/kushal_rpm.pub` | AlmaLinux enrollment verifies the binary with the bundled key in an isolated RPM database, installs the key as `/etc/pki/rpm-gpg/RPM-GPG-KEY-cosmos`, and imports it into the system RPM database for DNF. Set `COSMOS_RPM_KEY` to select a different signing key for a local test build. |
-| `COSMOS_PROVISIONING_PUBKEY` | Path to the public key corresponding to the workstation SSH identity. Needed when a fresh AlmaLinux image initially accepts only the `almalinux` login. |
+| `COSMOS_PROVISIONING_PUBKEY` | Optional workstation public key for the AlmaLinux root handoff. Set it when the cloud image has no single provisioning key or the controller uses a different identity. |
 
 Register the host and review its Git commit and signed tag. Add `-b` to enroll
 it immediately, or rerun the command with `-b` after registration. The
@@ -22,12 +22,14 @@ destination can be an IP address before DNS is configured.
 For a fresh AlmaLinux cloud guest behind a jump host:
 
 ```sh
-export COSMOS_PROVISIONING_PUBKEY="$HOME/.ssh/id_ed25519.pub"
 ./addhost -b -p admin@jump.example.org -n app-2.example.org -- 192.0.2.41
 ```
 
-The controller tries root first. During the AlmaLinux fallback it adds the
-provisioning public key and opens a separate root connection. It then locks
+The controller tries root first. On a fresh AlmaLinux cloud image it uses the
+single public key recorded by cloud-init if that key still has ordinary login
+access as `almalinux`. An explicit `COSMOS_PROVISIONING_PUBKEY` selects the
+operator's key instead. It adds the key to root and checks that a separate
+SSH connection returns UID 0. It then locks
 and expires the initial cloud account, removes its wheel membership and its
 cloud-init sudo grant, and checks for additional sudo grants. Its UID, home
 and other accounts' access are preserved. A retry uses the verified root
