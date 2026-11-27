@@ -6,7 +6,6 @@ requires-python = ">=3.14"
 dependencies = [
     "ansible-core>=2.22",
     "knotctl>=0.1.11",
-    "python-openstackclient>=8.0.0",
 ]
 
 [tool.uv]
