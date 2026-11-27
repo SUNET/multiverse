@@ -2,7 +2,7 @@
 set +x
 HOSTNAME=$1
 PUPPET_ARGS=()
-PUPPET_ARGS+=("$2")
+if [[ -n ${2:-} ]]; then PUPPET_ARGS+=("$2"); fi
 PUPPET_ARGS+=("--verbose")
 
 if [ -z "$HOSTNAME" ]; then
@@ -34,7 +34,8 @@ if [ $? -eq 1 ]; then
 	fi
 
 	echo "Running puppet apply..."
-	ssh root@"$HOSTNAME" /usr/bin/puppet apply "${PUPPET_ARGS[@]}" /etc/puppet/manifests/cosmos-site.pp
+	printf -v args ' %q' "${PUPPET_ARGS[@]}"
+	ssh root@"$HOSTNAME" '. /etc/os-release; puppet=/usr/bin/puppet; if [ "$ID" = almalinux ]; then puppet=/opt/puppetlabs/bin/puppet; fi; exec "$puppet" apply --confdir /etc/puppet --hiera_config /etc/puppet/hiera.yaml' "$args" /etc/puppet/manifests/cosmos-site.pp
 else
 	echo "Cosmos or puppet already running. Exiting."
 	exit 1

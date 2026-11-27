@@ -28,11 +28,6 @@
   ansible.builtin.set_fact:
     openstack_server_hosts: "{{ openstack_server_host_dirs.results | selectattr('stat.exists') | map(attribute='item') | list }}"
 
-- name: Set repo variables
-  ansible.builtin.set_fact:
-    openstack_server_cosmos_repo: "{{ lookup('ansible.builtin.file', repo_root ~ '/cosmos.conf') | regex_search('repo=\"?([^\"\\s]+)\"?', '\\1') | first }}"
-    openstack_server_cosmos_tag: "{{ lookup('ansible.builtin.file', repo_root ~ '/cosmos.conf') | regex_search('tag=\"?([^\"\\s]+)\"?', '\\1') | first }}"
-
 - name: Create or update the port of every server whose port is independent of it
   vars:
     security_group_names: "{{ item.value.security_groups | map('regex_replace', '^', 'maestro-' ~ security_group_name_prefix ~ '-') | list }}"
@@ -89,15 +84,11 @@
 
 - name: Launch and bootstrap an instance
   vars:
-    bootstrap: /root/cosmos-init/apt/bootstrap-cosmos.sh
-    log: /root/cloud-init-bootstrap-cosmos.log
-    bash: /usr/bin/bash
+    existing_servers: >-
+      {{ (openstack_server_existing_info.results | selectattr('item', 'equalto', item.value.cloud)
+          | first).servers | selectattr('name', 'equalto', item.key) | list }}
     security_group_names: "{{ item.value.security_groups | map('regex_replace', '^', 'maestro-' ~ security_group_name_prefix ~ '-') | list }}"
     independent_port: "{{ item.value.independent_port | default(true) | bool }}"
-    # Optional: not every server declares overlays. .get() returns None for a
-    # missing key instead of raising, and `or []` also covers an empty value.
-    overlays: "{{ (item.value.get('additional_overlays') or []) | join(',') }}"
-    overlay_arg: "{{ (' ' ~ overlays) if overlays else '' }}"
     extra_volumes: "{{ item.value.get('extra_volumes') or [] }}"
     volume_ids: >-
       {{ openstack_server_volumes.results
@@ -122,6 +113,7 @@
     terminate_volume: true
     volume_size: "{{ item.value.volume_size }}"
     volumes: "{{ volume_ids if volume_ids else omit }}"
+    metadata: "{{ existing_servers[0].metadata if existing_servers else {'multiverse_enrollment': 'pending'} }}"
     userdata: |
       #cloud-config
       hostname: {{ item.key }}
@@ -130,8 +122,11 @@
       system_info:
         default_user:
           name: root
-      packages:
-        - git
+      write_files:
+        - path: /var/lib/multiverse/enroll-pending
+          permissions: '0600'
+          content: 'pending'
+
       {% if has_mounts %}
       fs_setup:
       {% for v in extra_volumes %}
@@ -148,18 +143,6 @@
       {% endif %}
       {% endfor %}
       {% endif %}
-      # Note, that the list has to be proper yaml, so you have to quote
-      # any characters yaml would eat (':' can be problematic)
-      runcmd:
-       # Note: Don't write files to /tmp from cloud-init use /run/somedir instead.
-       # Early boot environments can race systemd-tmpfiles-clean LP: #1707222.
-       - [ mkdir, /root/cosmos-init ]
-       - [ git, clone, "{{ openstack_server_cosmos_repo }}", /root/cosmos-init ]
-       - [ /root/cosmos-init/iaas-setup.sh, "-s" ]
-       - [ {{ bash }}, -xc, "cosmos_deb=$(find /root/cosmos-init/apt/ -maxdepth 1 -name 'cosmos_*.deb' | sort -V | tail -1) && cp -v $cosmos_deb /root"   ]
-       - [ {{ bash }}, -c, "echo running bootstrap-cosmos.sh from cloud-init, log at /root/cloud-init-bootstrap-cosmos.log" ]
-       - [ {{ bash }}, -xc, "cd /root && {{ bootstrap }} {{ item.key }} {{ openstack_server_cosmos_repo }} {{ openstack_server_cosmos_tag }}{{ overlay_arg }} > {{ log }} 2>&1" ]
-       - [ {{ bash }}, -c, "echo bootstrap-cosmos.sh exited, see /root/cloud-init-bootstrap-cosmos.log for details" ]
   loop: "{{ openstack_server_hosts }}"
   register: openstack_server_returnvals
   loop_control:
@@ -407,3 +390,33 @@
     - not (item.skipped | default(false))
     - missing | length > 0
   changed_when: false
+
+- name: Wait for cloud-init and enroll pending instances from the controller
+  ansible.builtin.command:
+    argv:
+      - "{{ repo_root }}/scripts/bootstrap-host"
+      - "{{ item.item.value.ssh_destination if item.item.value.ssh_destination is defined else (item.server.addresses[item.item.value.network] | map(attribute='addr') | first) }}"
+      - "{{ item.item.key }}"
+      - ""
+      - ""
+      - "{{ (item.item.value.get('additional_overlays') or []) | join(',') }}"
+      - "{{ item.item.value.ssh_jump | default('') }}"
+      - maestro
+  loop: "{{ openstack_server_returnvals.results }}"
+  loop_control:
+    label: "{{ item.item.key }}"
+  when:
+    - not ansible_check_mode
+    - item.server.metadata.multiverse_enrollment | default('') == 'pending'
+  register: openstack_server_enrollments
+
+- name: Record completed enrollment in Nova
+  openstack.cloud.server_metadata:
+    cloud: "{{ item.item.item.value.cloud }}"
+    name: "{{ item.item.server.id }}"
+    metadata:
+      multiverse_enrollment: complete
+  loop: "{{ openstack_server_enrollments.results }}"
+  loop_control:
+    label: "{{ item.item.item.key }}"
+  when: not (item.skipped | default(false))

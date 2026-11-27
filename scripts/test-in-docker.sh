@@ -6,11 +6,23 @@
 
 set -e
 
-apt -y update
-apt -y install git rsync gpg
+. /etc/os-release
+if [[ $ID == almalinux ]]; then
+	bundle=$(mktemp -d)
+	(
+		cd "$bundle"
+		cp /multiverse/rpm/cosmos-*.el10.noarch.rpm .
+		cp /run/multiverse-rpm-key.pub rpm-key.pub
+		bash /multiverse/scripts/install-cosmos-package
+	)
+	rm -rf -- "$bundle"
+else
+	apt -y update
+	apt -y install git rsync gpg
 
-cosmos_deb=$(find /multiverse/apt/ -maxdepth 1 -name 'cosmos_*.deb' | sort -V | tail -1)
-dpkg -i "$cosmos_deb"
+	cosmos_deb=$(find /multiverse/apt/ -maxdepth 1 -name 'cosmos_*.deb' | sort -V | tail -1)
+	dpkg -i "$cosmos_deb"
+fi
 
 test -d /var/cache/cosmos/repo || mkdir -p /var/cache/cosmos/repo
 test -d /var/cache/cosmos/model || mkdir -p /var/cache/cosmos/model

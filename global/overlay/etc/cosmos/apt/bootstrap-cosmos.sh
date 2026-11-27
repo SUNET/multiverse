@@ -1,126 +1,102 @@
 #!/bin/bash
+# Run as root from the protected bootstrap bundle sent by the controller.
+set -euo pipefail
+export LANG=C.UTF-8 LC_ALL=C.UTF-8 DEBIAN_FRONTEND=noninteractive
+host=${1:?model hostname}
+repo=${2:?Git URL}
+tag=${3:?release tag prefix}
+IFS=, read -ra overlays <<<"${4:-}"
+valid_component() {
+	local component=$1
+	[[ $component =~ ^[[:alnum:]][[:alnum:]._-]*$ && $component != *..* ]]
+}
+valid_component "$host" && valid_component "$tag" || exit 2
+for overlay in "${overlays[@]}"; do valid_component "$overlay" || exit 2; done
+exec 200>/tmp/run-cosmos.lock
+flock -w 120 200
+. /etc/os-release
+bash ./install-cosmos-package
+cron=cron
+if [[ $ID == almalinux ]]; then cron=crond; fi
 
-set -ex
-
-cmd_hostname="$1"
-if [[ -z "$cmd_hostname" ]]; then
-	echo "Usage: $0 HOSTNAME REPO TAGPATTERN"
-	exit 1
+checkout=/var/cache/cosmos/repo
+if [[ ! -d $checkout ]]; then
+	cosmos clone "$repo"
 fi
-
-cmd_repo="$2"
-if [[ -z "$cmd_repo" ]]; then
-	echo "Usage $0 HOSTNAME REPO TAGPATTERN"
-	exit 2
+if ((${#overlays[@]} == 0)); then
+	overlays=("${host%%-*}-common")
 fi
-
-cmd_tags="$3"
-if [[ -z "$cmd_tags" ]]; then
-	echo "Usage $0 HOSTNAME REPO TAGPATTERN"
-	exit 3
-fi
-
-# Optional overlays to be configured in /etc/cosmos/cosmos.conf. String split by ','.
-IFS=',' read -r -a cmd_overlays <<<"$4"
-
-# cloud-init runs with LANG='US-ASCII' which is likely to fail because of non-US-ASCII chars in the manifest
-export LANG='en_US.UTF-8'
-
-export DEBIAN_FRONTEND='noninteractive'
-
-apt-get -y update
-apt-get -y upgrade
-for pkg in rsync git git-core wget gpg jq; do
-	# script is running with "set -e", use "|| true" to allow packages to not
-	# exist without stopping the script
-	apt-get -y install $pkg || true
-done
-cosmos_deb=$(find ./ -maxdepth 1 -name 'cosmos_*.deb' | sort -V | tail -1)
-dpkg -i "$cosmos_deb"
-
-if [[ ! -d /var/cache/cosmos/repo ]]; then
-	cosmos clone "$cmd_repo"
-fi
-
-# If this cloud-config is set, it will interfere with our changes to /etc/hosts
-# The configuration seems to move around between cloud-config versions
-for file in /etc/cloud/cloud.cfg /etc/cloud/cloud.cfg.d/01_debian_cloud.cfg; do
-	if [[ -f ${file} ]]; then
-		sed -i 's/manage_etc_hosts: true/manage_etc_hosts: false/g' ${file}
+models=("\$COSMOS_REPO/$host/")
+for overlay in "${overlays[@]}"; do
+	if [[ -d $checkout/$overlay ]]; then
+		models+=("\$COSMOS_REPO/$overlay/")
 	fi
 done
-
-# Remove potential $hostname.novalocal, added by cloud-init or Debian default
-# from /etc/hosts. We add our own further down.
-#
-# From # https://www.debian.org/doc/manuals/debian-reference/ch05.en.html#_the_hostname_resolution:
-# "For a system with a permanent IP address, that permanent IP address should
-# be used here instead of 127.0.1.1."
-sed -i.bak -e "/127\.0\.1\.1/d" /etc/hosts
-
-vendor=$(lsb_release -is)
-version=$(lsb_release -rs)
-min_version=1337
-host_ip=127.0.1.1
-if [[ "${vendor}" = "Ubuntu" ]]; then
-	min_version=20.04
-elif [[ "${vendor}" = "Debian" ]]; then
-	min_version=11
-fi
-
-hostname "$cmd_hostname"
-short=$(echo "${cmd_hostname}" | awk -F. '{print $1}')
-# Only change behavior on modern OS where `ip -j` outputs a json predictuble
-# enought to work with.
-#
-# Use `dpkg` to easier compare ubuntu versions.
-if dpkg --compare-versions "${version}" "ge" "${min_version}"; then
-	# When hostname pointed to loopback in /etc/hosts containers running on the
-	# host tried to connect to the container itself instead of the host.
-	host_ip=$(ip -j address show "$(ip -j route show default | jq -r '.[0].dev')" | jq -r .[0].addr_info[0].local)
-fi
-echo "${host_ip} ${cmd_hostname} ${short}" >>/etc/hosts
-
-# Set up cosmos models. They are in the order of most significant first, so we want
-# <host> <group (if it exists)> <global>
-# legacy_common is to be backwards compatible to before/without maestro
-_host_type=$(echo "$cmd_hostname" | cut -d - -f 1)
-legacy_common="${_host_type}-common"
-if [[ ${#cmd_overlays[@]} -eq 0 ]]; then
-	cmd_overlays=("$legacy_common")
-fi
-# $COSMOS_REPO should be handles as $PATH without expansion at this stage
-# shellcheck disable=SC2016
-models_array=('\$COSMOS_REPO/'"$cmd_hostname/")
-
-for overlay in "${cmd_overlays[@]}"; do
-	if [[ -d "/var/cache/cosmos/repo/${overlay}" ]]; then
-		# shellcheck disable=SC2016
-		models_array+=('\$COSMOS_REPO/'"${overlay}/")
+models+=("\$COSMOS_REPO/global/")
+if [[ $ID == almalinux && -f /var/lib/multiverse/handoff-pending ]]; then
+	# This session proved independent root access. Keep the original UID
+	# and home while retiring login and the cloud user's sudo grants.
+	usermod --lock --expiredate 1 --shell /usr/sbin/nologin almalinux
+	if id -nG almalinux | tr ' ' '\n' | grep -Fxq wheel; then
+		gpasswd -d almalinux wheel
 	fi
-done
+	# cloud-init can put rules for several accounts in this file.
+	sudoers=/etc/sudoers.d/90-cloud-init-users
+	if [[ -f $sudoers ]]; then
+		tmp=$(mktemp /etc/sudoers.d/.multiverse.XXXXXXXX)
+		sed '/^almalinux[[:space:]]/d' "$sudoers" >"$tmp"
+		chmod 0440 "$tmp"
+		visudo -cf "$tmp"
+		mv -f "$tmp" "$sudoers"
+		restorecon "$sudoers"
+	fi
+	# sudo -l can return zero even when the user is denied every command.
+	grants=$(LC_ALL=C sudo -n -l -U almalinux 2>&1) || true
+	if [[ $grants != "User almalinux is not allowed to run sudo on "* ]]; then
+		echo 'A site sudo rule still grants access to almalinux' >&2
+		exit 1
+	fi
+	rm -f /var/lib/multiverse/handoff-pending
+fi
+hostnamectl set-hostname "$host"
+if [[ -d /etc/cloud/cloud.cfg.d ]]; then
+	printf 'preserve_hostname: true\nmanage_etc_hosts: false\n' >/etc/cloud/cloud.cfg.d/99-multiverse-hostname.cfg
+fi
+address=$(ip -j route get 192.0.2.1 2>/dev/null | jq -er '.[0].prefsrc') ||
+	address=$(ip -6 -j route get 2001:db8::1 | jq -er '.[0].prefsrc')
+awk -v h="$host" '$0 !~ /# multiverse-hostname$/ {
+	for (i=2; i<=NF && $i !~ /^#/; i++) if ($i == h) next
+	print
+}' /etc/hosts >hosts.new
+printf '%s %s %s # multiverse-hostname\n' "$address" "$host" "${host%%.*}" >>hosts.new
+cat hosts.new >/etc/hosts
 
-# shellcheck disable=SC2016
-models_array+=('\$COSMOS_REPO/global/')
-models=$(
+conf=/etc/cosmos/cosmos.conf
+sed -E '/^#?COSMOS_(REPO_MODELS|UPDATE_VERIFY|UPDATE_VERIFY_GIT_TAG_PATTERN)=/d' "$conf" >cosmos.conf
+(
 	IFS=:
-	echo "${models_array[*]}"
-)
-
-echo "Configuring cosmos with the following models:"
-echo "${models}"
-
-perl -pi -e "s,#COSMOS_REPO_MODELS=.*,COSMOS_REPO_MODELS=\"${models}\"," /etc/cosmos/cosmos.conf
-perl -pi -e "s,#COSMOS_UPDATE_VERIFY_GIT_TAG_PATTERN=.*,COSMOS_UPDATE_VERIFY_GIT_TAG_PATTERN=\"${cmd_tags}*\"," /etc/cosmos/cosmos.conf
-
+	printf 'COSMOS_REPO_MODELS="%s"\n' "${models[*]}"
+) >>cosmos.conf
+printf 'COSMOS_UPDATE_VERIFY=y\nCOSMOS_UPDATE_VERIFY_GIT_TAG_PATTERN="%s*"\n' "$tag" >>cosmos.conf
+# Replace atomically on the same filesystem, retaining package permissions.
+cp -p "$conf" "$conf.enrolling"
+cat cosmos.conf >"$conf.enrolling"
+mv -f "$conf.enrolling" "$conf"
 env COSMOS_BASE=/var/cache/cosmos COSMOS_KEYS=/var/cache/cosmos/repo/global/overlay/etc/cosmos/keys /var/cache/cosmos/repo/global/post-tasks.d/015cosmos-trust
 
 mkdir -p /var/cache/scriptherder
-
-(
-	date
-	nohup cosmos -v update && nohup cosmos -v apply
-	date
-) 2>&1 | tee /var/log/cosmos.log
-
-exit 0
+export COSMOS_PUPPET_RECEIPT="$PWD/catalog-applied"
+rm -f "$COSMOS_PUPPET_RECEIPT"
+{
+	cosmos -v update
+	cosmos -v apply
+	[[ -s $COSMOS_PUPPET_RECEIPT ]] || {
+		echo 'No successful Puppet apply in the signed model' >&2
+		exit 1
+	}
+	systemctl enable --now "$cron"
+	touch /run/last-cosmos-ok.stamp
+	install -d -m 0700 /var/lib/multiverse
+	touch /var/lib/multiverse/enrolled
+	rm -f /var/lib/multiverse/enroll-pending
+} 2>&1 | tee -a /var/log/cosmos.log

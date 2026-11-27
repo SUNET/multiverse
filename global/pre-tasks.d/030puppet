@@ -7,6 +7,19 @@ set -e
 
 stamp="$COSMOS_BASE/stamps/puppet-tools-v01.stamp"
 
+. /etc/os-release
+if [ "$ID" = almalinux ]; then
+	test "${VERSION_ID%%.*}" = 10
+	dir="$COSMOS_MODEL/pre-tasks.d/openvox"
+	install -C -m 0644 "$dir/GPG-KEY-openvox.pub" /etc/pki/rpm-gpg/GPG-KEY-openvox.pub
+	install -C -m 0644 "$dir/openvox8.repo" /etc/yum.repos.d/multiverse-openvox8.repo
+	if ! test -x /opt/puppetlabs/bin/puppet || ! test -f "$stamp"; then
+		dnf -y install 'openvox-agent-8.*' python3-pyyaml openssl cronie tar
+		mkdir -p "$(dirname "$stamp")"
+		touch "$stamp"
+	fi
+	exit 0
+fi
 if ! test -f "${stamp}" -a -f /usr/bin/puppet; then
 	apt-get update
 	apt-get -y install puppet

@@ -113,3 +113,19 @@ If a user has `knotctl` installed and configured and `knotctl user` returns the 
 If `knotctl` is missing, fails, or does not return JSON for `knotctl --json user`, the hosts are still created, no DNS records are added, and the run prints a `[WARNING]` with knotctl's own output. Update DNS by hand for those hosts.
 
 For every newly created host it reads the records back and compares them with the addresses the instance actually has, so the run reports what is published (`DNS now 130.242.0.1, 2001:6b0:... (added ...)`) and warns if an address is still missing. A run that ends with no `[WARNING]` lines has its DNS in place; any warning names the host to fix by hand.
+
+## First convergence on Debian and AlmaLinux
+
+Maestro requests root SSH access via cloud-init. Set up controller access to
+the Nova keypair and a verified SSH host key or host CA. A server can set
+`ssh_destination` to an SSH alias and `ssh_jump` to a jump host. The default
+destination is an address on the requested network. Its host key must be
+verifiable before enrollment. For AlmaLinux, the playbook needs the same signed EL10
+package and bundled `rpm/kushal_rpm.pub` key as `addhost -b`.
+[Enrollment and trust configuration](../enrollment.md)
+
+Cloud-init sets up the requested filesystems and mounts. Maestro waits for
+cloud-init, sends the bootstrap bundle over SSH and waits for Puppet. Nova
+metadata records pending enrollment at creation and completion after success.
+Rerun the playbook after correcting a bootstrap failure. Existing instances
+created by earlier versions retain their previous enrollment.

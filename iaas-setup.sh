@@ -6,16 +6,19 @@
 set -x
 
 usage() {
-	echo "usage: iaas-setup.sh [-s]"
+	echo "usage: iaas-setup.sh [-s] [-c]"
 	echo "    -s: skip reboot"
+	echo "    -c: keep cloud-init accounts and sudo grants"
 	exit 1
 }
 
 # Reboot by default
 do_reboot=1
+keep_accounts=0
 
-while getopts ":s" o; do
+while getopts ":sc" o; do
 	case "${o}" in
+	c) keep_accounts=1 ;;
 	s)
 		do_reboot=0
 		;;
@@ -47,7 +50,7 @@ fi
 export LC_CTYPE=C.UTF-8
 
 # Remove default user if present
-if id "$os"; then
+if [[ $keep_accounts == 0 ]] && id "$os"; then
 	# Make sure there is no systemd process running as the initial cloud image user
 	# after the "enable root" step in prepare-iaas-$os. If there are any
 	# proceses still running as the specified user the "userdel" command
@@ -85,7 +88,9 @@ fi
 # From this point we expect all commands to succeed
 set -e
 
-rm /etc/sudoers.d/*
+if [[ $keep_accounts == 0 ]]; then
+	rm /etc/sudoers.d/*
+fi
 
 # Make sure en_US.UTF-8 is present in the system, expected by at least
 # bootstrap-cosmos.sh

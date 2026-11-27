@@ -20,7 +20,7 @@ def cosmos():
     run("/usr/local/bin/run-cosmos");
 
 def upgrade():
-    run("apt-get -qq update && apt-get -y -q dist-upgrade");
+    run('. /etc/os-release; case "$ID" in almalinux) dnf -y upgrade ;; debian|ubuntu) apt-get -qq update && apt-get -y -q dist-upgrade ;; *) exit 1 ;; esac')
 
 def facts():
     get("/var/run/facts.yaml",local_path="facts/%(host)s.yaml")

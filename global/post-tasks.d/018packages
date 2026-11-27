@@ -6,8 +6,17 @@ CACHE_DIR=/var/cache/puppet-modules
 MODULES_DIR=${MODULES_DIR:=/etc/puppet/cosmos-modules}
 export GNUPGHOME=/etc/cosmos/gnupg
 
+. /etc/os-release
+if [[ $ID == almalinux ]]; then set -e; fi
+
 # /etc/puppet/cosmos_enc.py needs the YAML module
-python3 -c "import yaml" 2>/dev/null || apt-get -y install python3-yaml
+if ! python3 -c "import yaml" 2>/dev/null; then
+	if [[ $ID == almalinux ]]; then
+		dnf -y install python3-pyyaml
+	else
+		apt-get -y install python3-yaml
+	fi
+fi
 
 bold='\e[1m'
 reset='\e[0m'
@@ -38,6 +47,7 @@ if [ -f "$CONFIG" ] || [ "$LOCALCONFIG" ]; then
 	# First pass to clone any new modules, and update those marked for updating.
 	grep -h -E -v "^#" "${files[@]}" | sort | (
 		while read -r module src update pattern; do
+			[[ $ID == almalinux && -z $module ]] && continue
 			# We only support git://, file:/// and https:// urls at the moment
 			if [ "${src:0:6}" = "git://" ] || [ "${src:0:8}" = "file:///" ] || [ "${src:0:8}" = "https://" ]; then
 				if [ ! -d "$CACHE_DIR/scm/$module" ]; then
@@ -59,6 +69,23 @@ if [ -f "$CONFIG" ] || [ "$LOCALCONFIG" ]; then
 					echo -e "${red}ERROR: Ignoring non-git repository${reset}"
 					continue
 				fi
+			elif [[ $ID == almalinux ]]; then
+				case "$module:$src" in
+					concat:puppetlabs/concat|stdlib:puppetlabs/stdlib)
+						# Install into the module path used by the Cosmos catalog.
+						puppet=/opt/puppetlabs/bin/puppet
+						modules=/etc/puppet/modules
+						if [[ ! -d "$modules/$module" ]]; then
+							"$puppet" module install "$src" --target-dir "$modules" --modulepath "$modules"
+						elif [[ $update == yes ]]; then
+							"$puppet" module upgrade "$src" --modulepath "$modules"
+						fi
+						;;
+					*)
+						echo "Expected a signed Git source for ${module} or an upstream concat/stdlib module" >&2
+						exit 1
+						;;
+				esac
 			elif [[ "$src" =~ .*:// ]]; then
 				echo -e "${red}ERROR: Don't know how to install '${src}'${reset}"
 				continue
@@ -87,6 +114,7 @@ if [ -f "$CONFIG" ] || [ "$LOCALCONFIG" ]; then
 				fi
 				if [ -z "$TAG" ]; then
 					echo -e "${red}ERROR: No git tag found for pattern '${pattern:-*}' on puppet-module ${module}${reset}"
+					[[ $ID == almalinux ]] && exit 1
 					continue
 				fi
 				if git tag -v "$TAG" &>/dev/null; then

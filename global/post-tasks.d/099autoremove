@@ -3,6 +3,11 @@
 export DEBIAN_FRONTEND='noninteractive'
 
 if ((RANDOM % 20 == 0)); then
+	. /etc/os-release
+	if [[ $ID == almalinux ]]; then
+		dnf -q clean expire-cache
+		exit
+	fi
 	apt-get -qq update
 	apt-get -qq -y autoremove
 fi
