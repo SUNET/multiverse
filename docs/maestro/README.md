@@ -10,11 +10,22 @@ It's a set of orchestration tools to easier create hosts in Openstack, bootstrap
 # Wooo! Sounds awesome. What do I need in order to use it?
 
 * A modern version of multiverse which contains Maestro
-* Ansible
-* knotctl 0.1.10 or newer with access to given zone(s) (Optional but probably preferred). Older versions exit 0 even when the DNS API cannot be reached or does not answer in JSON; Maestro still warns in that case, but only from knotctl's output
+* [uv](https://docs.astral.sh/uv/) (it fetches Python 3.14 if missing)
 * SUNET VPN (The Openstack APIs are protected)
-* A modern version of the openstack collection to ansible (`ansible-galaxy collection install openstack.cloud --upgrade`)
 * `clouds.yaml` which contains all the required sites
+
+# Setup
+
+From the `maestro/` directory of your ops repo:
+
+```sh
+uv sync   # ansible-core, python-openstackclient, knotctl (pinned in uv.lock) into .venv
+uv run ansible-galaxy collection install -r requirements.yml
+```
+
+This installs Ansible, the `openstack.cloud` collection and knotctl. knotctl is optional but probably preferred, and needs access to the given zone(s). Use 0.1.10 or newer: older versions exit 0 even when the DNS API cannot be reached or does not answer in JSON; Maestro still warns in that case, but only from knotctl's output.
+
+`maestro/host_vars/` is project-specific and maintained in your ops repo. Keep your changes there; changes to other files may conflict when you update from multiverse.
 
 # Configuration
 * Copy the examples files in `<ops-repo>/docs/maestro/` to `<ops-repo>/maestro/host_vars/localhost/` and make edits to match your repo/service (remove the example suffix from file names)
@@ -51,38 +62,38 @@ clouds:
 ./addhost my-aweseome-example.example.com
 ```
 
-* Get yourself the maestro directory in the ops repo
+* Go to the maestro directory in the ops repo
 ```
 cd maestro
 ```
 
 * Run the smoketest playbook to test: api/cloud connectivity, security group references etc.
 ```
-ansible-playbook smoketest.yml
+uv run ansible-playbook smoketest.yml
 ```
 
 * Add/update the desired security groups
 ```
-ansible-playbook security_groups.yml
+uv run ansible-playbook security_groups.yml
 ```
 
 * Add/update the desired servers
 ```
-ansible-playbook servers.yml
+uv run ansible-playbook servers.yml
 ```
 
 * Or do both in one go (security groups first, then servers)
 ```
-ansible-playbook site.yml
+uv run ansible-playbook site.yml
 ```
 
 # Limiting a run to one cloud
 
 All three playbooks accept `cloud_limit`, a cloud name (or comma separated list) from `clouds.yaml`. Only the servers and security groups in those clouds are processed; without it everything is.
 ```
-ansible-playbook smoketest.yml -e cloud_limit=example.sunet.se-sunet-orion
-ansible-playbook security_groups.yml -e cloud_limit=example.sunet.se-sunet-orion
-ansible-playbook servers.yml -e cloud_limit=example.sunet.se-sunet-orion,example.sunet.se-safespring-dco
+uv run ansible-playbook smoketest.yml -e cloud_limit=example.sunet.se-sunet-orion
+uv run ansible-playbook security_groups.yml -e cloud_limit=example.sunet.se-sunet-orion
+uv run ansible-playbook servers.yml -e cloud_limit=example.sunet.se-sunet-orion,example.sunet.se-safespring-dco
 ```
 A name that matches no configured cloud fails the run instead of silently doing nothing.
 
