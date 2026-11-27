@@ -17,7 +17,7 @@ security_groups:
         direction: egress
         remote_ip_prefix: ::/0
   ssh-from-sunet-jump:
-    description: incomming SSH from SUNET-jumphosts
+    description: incoming SSH from SUNET-jumphosts
     datacenters:
       - example.sunet.se-safespring-dco
       - example.sunet.se-safespring-sto1
@@ -56,7 +56,7 @@ security_groups:
       - example.sunet.se-safespring-dco
       - example.sunet.se-safespring-sto1
       - example.sunet.se-sunet-orion
-    description: incomming ICMP from any
+    description: incoming ICMP from any
     security_group_rules:
       - ether_type: IPv4
         direction: ingress
